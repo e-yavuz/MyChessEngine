@@ -1,4 +1,4 @@
-package board
+package chessengine
 
 import (
 	"fmt"
@@ -35,80 +35,27 @@ type Board struct {
 	Wqueen  BitBoard
 	Wking   BitBoard
 
-	EnPassantPosition byte
-	IsWhiteTurn       bool
+	stateInfoArr []*StateInfo
 
-	CastleWKing  bool
-	CastleBKing  bool
-	CastleWQueen bool
-	CastleBQueen bool
-
-	DrawCounter int
-	TurnCounter int
-
-	PieceInfoMap map[byte]*Piece
+	PieceInfoMap map[byte]*PieceInfo
 }
 
-// TODO
-func GeneratePsuedoLegalMoves() {
-	return
+func (board *Board) GetTopState() *StateInfo {
+	return board.stateInfoArr[len(board.stateInfoArr)-1]
 }
 
-// TODO
-func GenerateLegalMoves() {
-	return
+func (board *Board) PushNewState(newState *StateInfo) {
+	board.stateInfoArr = append(board.stateInfoArr, newState)
 }
 
-// Invariant: Assumes move is possible to make!
-func (board *Board) MakeMove(move *Move) {
-	piece := board.PieceInfoMap[move.GetStartingPosition()]
-
-	//Start by removing this piece from the bitBoard it was originally, it is essentially in limbo now
-	piece.ThisBitBoard.removeFromBitBoard(move.GetStartingPosition())
-
-	//Now need to check flags to see what is happening!
-	switch move.GetFlag() {
-	case quietFlag: //Default case
-		break
-	case doublePawnPushFlag:
-		board.EnPassantPosition = (move.GetStartingPosition() + move.GetTargetPosition()) / 2
-	case kingCastleFlag:
-		if piece.IsWhite {
-			board.CastleWKing = false
-			board.CastleWQueen = false
-			board.swapPiecePositions(&board.Wrook, move.GetTargetPosition()+1, move.GetTargetPosition()-1)
-		} else {
-			board.CastleBKing = false
-			board.CastleBQueen = false
-			board.swapPiecePositions(&board.Brook, move.GetTargetPosition()+1, move.GetTargetPosition()-1)
-		}
-	case queenCastleFlag:
-		if piece.IsWhite {
-			board.CastleWKing = false
-			board.CastleWQueen = false
-			board.swapPiecePositions(&board.Wrook, move.GetTargetPosition()-1, move.GetTargetPosition()+1)
-		} else {
-			board.CastleBKing = false
-			board.CastleBQueen = false
-			board.swapPiecePositions(&board.Brook, move.GetTargetPosition()-1, move.GetTargetPosition()+1)
-		}
-	case captureFlag:
-		
-
+func (board *Board) PopTopState() *StateInfo {
+	if len(board.stateInfoArr) == 0 {
+		panic("State Info array is already empty!")
 	}
-
-}
-
-func (board *Board) swapPiecePositions(bitboard *BitBoard, startPosition, targetPosition byte) {
-	bitboard.removeFromBitBoard(startPosition)
-	bitboard.placeOnBitBoard(targetPosition)
-	board.PieceInfoMap[targetPosition] = board.PieceInfoMap[startPosition]
-	delete(board.PieceInfoMap, startPosition)
-}
-
-// TODO
-func (board *Board) UnMakeMove(move *Move) {
-	return
+	retval := board.GetTopState()
+	// Pop the top
+	board.stateInfoArr = board.stateInfoArr[:len(board.stateInfoArr)-1]
+	return retval
 }
 
 // Starts with FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -116,7 +63,6 @@ func InitStartBoard() *Board {
 	return InitFENBoard(StartingFen)
 }
 
-// TODO add in handling for enpassant and castling status
 // Sets up board with all empty state given a FEN string
 func InitFENBoard(FEN string) *Board {
 	FEN_Arr := strings.Split(FEN, " ")
@@ -128,8 +74,8 @@ func InitFENBoard(FEN string) *Board {
 	turnCount := FEN_Arr[5]
 
 	retval := &Board{
-		PieceInfoMap: make(map[byte]*Piece),
-		IsWhiteTurn:  turnColor == "w",
+		PieceInfoMap: make(map[byte]*PieceInfo),
+		stateInfoArr: make([]*StateInfo, 1),
 	}
 
 	position := byte(56)
@@ -148,13 +94,13 @@ func InitFENBoard(FEN string) *Board {
 	for _, r := range castlingRights {
 		switch r {
 		case 'K':
-			retval.CastleWKing = true
+			retval.GetTopState().CastleWKing = true
 		case 'Q':
-			retval.CastleWQueen = true
+			retval.GetTopState().CastleWQueen = true
 		case 'k':
-			retval.CastleBKing = true
+			retval.GetTopState().CastleBKing = true
 		case 'q':
-			retval.CastleBQueen = true
+			retval.GetTopState().CastleBQueen = true
 		}
 
 	}
@@ -162,13 +108,14 @@ func InitFENBoard(FEN string) *Board {
 	if enPassantSquare != "-" {
 		var row byte = enPassantSquare[0] - 'a'
 		var col byte = enPassantSquare[1] - '0'
-		retval.EnPassantPosition = (row*8 + col)
+		retval.GetTopState().EnPassantPosition = (row*8 + col)
 	} else {
-		retval.EnPassantPosition = NullPosition
+		retval.GetTopState().EnPassantPosition = NullPosition
 	}
 
-	retval.DrawCounter, _ = strconv.Atoi(drawCount)
-	retval.TurnCounter, _ = strconv.Atoi(turnCount)
+	retval.GetTopState().IsWhiteTurn = turnColor == "w"
+	retval.GetTopState().DrawCounter, _ = strconv.Atoi(drawCount)
+	retval.GetTopState().TurnCounter, _ = strconv.Atoi(turnCount)
 
 	return retval
 }
@@ -214,11 +161,11 @@ func (board *Board) placeFENonBoard(r rune, position byte) {
 		thisPiece.ThisBitBoard = &board.Wking
 		thisPiece.IsWhite = true
 	}
-	thisPiece.ThisBitBoard.placeOnBitBoard(position)
+	thisPiece.ThisBitBoard.PlaceOnBitBoard(position)
 	board.PieceInfoMap[position] = thisPiece
 }
 
-// TODO
+// TODOlow InitPGNBoard
 func InitPGNBoard(PGN string) *Board {
 	return &Board{}
 }

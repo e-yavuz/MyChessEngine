@@ -1,4 +1,4 @@
-package board
+package chessengine
 
 // Bitmask for all possible movement for each piece on a 8x8 board
 var (
@@ -32,11 +32,11 @@ func init() {
 	}
 }
 
-func (bitboard *BitBoard) placeOnBitBoard(position byte) {
+func (bitboard *BitBoard) PlaceOnBitBoard(position byte) {
 	bitboard.Encoding |= 1 << position
 }
 
-func (bitboard *BitBoard) removeFromBitBoard(position byte) {
+func (bitboard *BitBoard) RemoveFromBitBoard(position byte) {
 	bitboard.Encoding &= (1 << position) - 1
 }
 

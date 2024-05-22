@@ -1,11 +1,11 @@
-package board
+package chessengine
 
-type Piece struct {
+type PieceInfo struct {
 	ThisBitBoard *BitBoard
 	IsWhite      bool
 }
 
 // Constructor for new piece with empty state
-func NewPiece() *Piece {
-	return &Piece{}
+func NewPiece() *PieceInfo {
+	return &PieceInfo{}
 }

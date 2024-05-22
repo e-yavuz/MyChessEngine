@@ -1,4 +1,4 @@
-package board
+package chessengine
 
 /*
 	Contains info for move + all possible flags
@@ -25,13 +25,9 @@ code	promotion	capture	special 1	special 0	kind of move
 4	0	1	0	0	captures
 5	0	1	0	1	ep-capture
 8	1	0	0	0	knight-promotion
-9	1	0	0	1	bishop-promotion
-10	1	0	1	0	rook-promotion
-11	1	0	1	1	queen-promotion
-12	1	1	0	0	knight-promo capture
-13	1	1	0	1	bishop-promo capture
-14	1	1	1	0	rook-promo capture
-15	1	1	1	1	queen-promo capture
+9	1	0	0	1	queen-promotion
+11	1	1	0	0	knight-promo capture
+13	1	1	0	1	queen-promo capture
 */
 
 const (
@@ -42,12 +38,8 @@ const (
 	captureFlag            = 0b0100
 	epCaptureFlag          = 0b0101
 	knightPromotionFlag    = 0b1000
-	bishopPromotionFlag    = 0b1001
-	rookPromotionFlag      = 0b1010
 	queenPromotionFlag     = 0b1011
 	knightPromoCaptureFlag = 0b1100
-	bishopPromoCaptureFlag = 0b1101
-	rookPromoCaptureFlag   = 0b1110
 	queenPromoCaptureFlag  = 0b1111
 )
 
