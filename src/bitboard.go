@@ -20,6 +20,10 @@ type BitBoard struct {
 	Encoding uint64
 }
 
+func (bb *BitBoard) Equal(other *BitBoard) bool {
+	return bb.Encoding == other.Encoding
+}
+
 func init() {
 	for i := 0; i < 64; i++ {
 		WPawnMoves[i] = calculateWPawnMoves(i)
@@ -37,7 +41,7 @@ func (bitboard *BitBoard) PlaceOnBitBoard(position byte) {
 }
 
 func (bitboard *BitBoard) RemoveFromBitBoard(position byte) {
-	bitboard.Encoding &= (1 << position) - 1
+	bitboard.Encoding &= ^(uint64(1) << position)
 }
 
 func (bitboard *BitBoard) LSBpositions() []byte {

@@ -2,9 +2,10 @@ package main
 
 import (
 	chessengine "chessengine/src"
+	"fmt"
 )
 
 func main() {
 	b := chessengine.InitStartBoard()
-	b.DisplayBoard()
+	fmt.Print(b.DisplayBoard())
 }

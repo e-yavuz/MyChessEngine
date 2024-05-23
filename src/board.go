@@ -37,7 +37,43 @@ type Board struct {
 
 	stateInfoArr []*StateInfo
 
-	PieceInfoMap map[byte]*PieceInfo
+	PieceInfoArr [64]*PieceInfo
+}
+
+func (board *Board) Equal(other *Board) bool {
+	bitBoardsCompare := board.Bpawn.Equal(&other.Bpawn) &&
+		board.Bknight.Equal(&other.Bknight) &&
+		board.Brook.Equal(&other.Brook) &&
+		board.Bbishop.Equal(&other.Bbishop) &&
+		board.Bqueen.Equal(&other.Bqueen) &&
+		board.Bking.Equal(&other.Bking) &&
+		board.Wpawn.Equal(&other.Wpawn) &&
+		board.Wknight.Equal(&other.Wknight) &&
+		board.Wrook.Equal(&other.Wrook) &&
+		board.Wbishop.Equal(&other.Wbishop) &&
+		board.Wqueen.Equal(&other.Wqueen) &&
+		board.Wking.Equal(&other.Wking)
+
+	stCompare := board.GetTopState().Equal(other.GetTopState())
+
+	PieceInfoArrCompare := true
+
+	for i := 0; i < 64; i++ {
+		if board.PieceInfoArr[i] != nil && other.PieceInfoArr[i] != nil {
+			PieceInfoArrCompare = board.PieceInfoArr[i].Equal(other.PieceInfoArr[i]) &&
+				PieceInfoArrCompare
+		} else {
+			PieceInfoArrCompare = board.PieceInfoArr[i] == nil &&
+				other.PieceInfoArr[i] == nil && PieceInfoArrCompare
+		}
+
+		if !PieceInfoArrCompare {
+			return false
+		}
+
+	}
+
+	return bitBoardsCompare && stCompare
 }
 
 func (board *Board) GetTopState() *StateInfo {
@@ -74,8 +110,7 @@ func InitFENBoard(FEN string) *Board {
 	turnCount := FEN_Arr[5]
 
 	retval := &Board{
-		PieceInfoMap: make(map[byte]*PieceInfo),
-		stateInfoArr: make([]*StateInfo, 1),
+		stateInfoArr: []*StateInfo{{}},
 	}
 
 	position := byte(56)
@@ -106,8 +141,8 @@ func InitFENBoard(FEN string) *Board {
 	}
 
 	if enPassantSquare != "-" {
-		var row byte = enPassantSquare[0] - 'a'
-		var col byte = enPassantSquare[1] - '0'
+		var col byte = enPassantSquare[0] - 'a'
+		var row byte = enPassantSquare[1] - '1'
 		retval.GetTopState().EnPassantPosition = (row*8 + col)
 	} else {
 		retval.GetTopState().EnPassantPosition = NullPosition
@@ -162,7 +197,7 @@ func (board *Board) placeFENonBoard(r rune, position byte) {
 		thisPiece.IsWhite = true
 	}
 	thisPiece.ThisBitBoard.PlaceOnBitBoard(position)
-	board.PieceInfoMap[position] = thisPiece
+	board.PieceInfoArr[position] = thisPiece
 }
 
 // TODOlow InitPGNBoard
@@ -171,7 +206,7 @@ func InitPGNBoard(PGN string) *Board {
 }
 
 // Displays 8x8 board in cmdline
-func (board *Board) DisplayBoard() {
+func (board *Board) DisplayBoard() (retval string) {
 	var boardRep [8][8]rune
 	for _, position := range board.Bpawn.LSBpositions() {
 		boardRep[position/8][position%8] = 'p'
@@ -209,9 +244,9 @@ func (board *Board) DisplayBoard() {
 	for _, position := range board.Wking.LSBpositions() {
 		boardRep[position/8][position%8] = 'K'
 	}
-	fmt.Println("-----------------")
+	retval += "-----------------" + "\n"
 	for row := 7; row >= 0; row-- {
-		fmt.Print("|")
+		retval += "|"
 		str := ""
 		for col := 0; col < 8; col++ {
 			if boardRep[row][col] != 0 {
@@ -220,7 +255,9 @@ func (board *Board) DisplayBoard() {
 				str += "#"
 			}
 		}
-		fmt.Printf("%s|\n", strings.Join(strings.Split(str, ""), " "))
+		retval += fmt.Sprintf("%s|\n", strings.Join(strings.Split(str, ""), " "))
 	}
-	fmt.Println("-----------------")
+	retval += "-----------------"
+
+	return retval
 }

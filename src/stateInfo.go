@@ -15,3 +15,29 @@ type StateInfo struct {
 	Capture              *PieceInfo
 	PrePromotionBitBoard *BitBoard
 }
+
+func (si *StateInfo) Equal(other *StateInfo) bool {
+	var captureCompare, promotionCompare, valueCompare bool
+	if si.Capture != nil && other.Capture != nil {
+		captureCompare = si.Capture.Equal(other.Capture)
+	} else {
+		captureCompare = si.Capture == other.Capture
+	}
+
+	if si.PrePromotionBitBoard != nil && other.PrePromotionBitBoard != nil {
+		promotionCompare = si.PrePromotionBitBoard.Equal(other.PrePromotionBitBoard)
+	} else {
+		promotionCompare = si.PrePromotionBitBoard == other.PrePromotionBitBoard
+	}
+
+	valueCompare = si.EnPassantPosition == other.EnPassantPosition &&
+		si.IsWhiteTurn == other.IsWhiteTurn &&
+		si.CastleWKing == other.CastleWKing &&
+		si.CastleBKing == other.CastleBKing &&
+		si.CastleWQueen == other.CastleWQueen &&
+		si.CastleBQueen == other.CastleBQueen &&
+		si.DrawCounter == other.DrawCounter &&
+		si.TurnCounter == other.TurnCounter
+
+	return captureCompare && promotionCompare && valueCompare
+}
