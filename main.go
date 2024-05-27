@@ -2,10 +2,8 @@ package main
 
 import (
 	chessengine "chessengine/src"
-	"fmt"
 )
 
 func main() {
-	b := chessengine.InitStartBoard()
-	fmt.Print(b.DisplayBoard())
+	chessengine.ImproveMagicNumber(71, 30, "test_rook", "test_bishop")
 }

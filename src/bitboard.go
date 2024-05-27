@@ -1,180 +1,68 @@
 package chessengine
 
+import "fmt"
+
 // Bitmask for all possible movement for each piece on a 8x8 board
 var (
-	BPawnMoves [64]uint64
-	WPawnMoves [64]uint64
-
-	KnightMoves [64]uint64
-
-	BishopMoves [64]uint64
-
-	RookMoves [64]uint64
-
-	QueenMoves [64]uint64
-
-	KingMoves [64]uint64
+	Row1Full         BitBoard = 0xFF
+	Row2Full         BitBoard = 0xFF00
+	Row7Full         BitBoard = 0xFF000000000000
+	Row8Full         BitBoard = 0xFF00000000000000
+	Col1Full         BitBoard = 0x101010101010101
+	Col8Full         BitBoard = 0x8080808080808080
+	PromotionFull    BitBoard = Row1Full | Row8Full
+	NonPromotionFull BitBoard = ^PromotionFull
+	InteriorFull     BitBoard = ^(Row1Full | Row8Full | Col1Full | Col8Full)
 )
 
-type BitBoard struct {
-	Encoding uint64
+const (
+	NULL_POSITION uint16 = 65535
+)
+
+type BitBoard = uint64
+
+func PlaceOnBitBoard(bitboard *BitBoard, position Position) {
+	*bitboard |= 1 << position
 }
 
-func (bb *BitBoard) Equal(other *BitBoard) bool {
-	return bb.Encoding == other.Encoding
+func RemoveFromBitBoard(bitboard *BitBoard, position Position) {
+	*bitboard &= ^(uint64(1) << position)
 }
 
-func init() {
-	for i := 0; i < 64; i++ {
-		WPawnMoves[i] = calculateWPawnMoves(i)
-		BPawnMoves[i] = calculateBPawnMoves(i)
-		KnightMoves[i] = calculateKnightMoves(i)
-		BishopMoves[i] = calculateBishopMoves(i)
-		QueenMoves[i] = calculateQueenMoves(i)
-		RookMoves[i] = calculateRookMoves(i)
-		KingMoves[i] = calculateKingMoves(i)
+func PopLSB(bitboard *BitBoard) Position {
+	if *bitboard == 0 {
+		return NULL_POSITION
 	}
+	var index Position = 0
+	var mask BitBoard = 1
+	for (*bitboard & mask) == 0 {
+		mask <<= 1
+		index++
+	}
+	*bitboard &= ^mask
+	return index
 }
 
-func (bitboard *BitBoard) PlaceOnBitBoard(position byte) {
-	bitboard.Encoding |= 1 << position
-}
-
-func (bitboard *BitBoard) RemoveFromBitBoard(position byte) {
-	bitboard.Encoding &= ^(uint64(1) << position)
-}
-
-func (bitboard *BitBoard) LSBpositions() []byte {
-	var value uint64 = bitboard.Encoding
-	var retval []byte
-	position := byte(0)
-	for position < 64 {
-		if value&1 == 1 {
-			retval = append(retval, position)
-		}
-		value >>= 1
-		position++
+func Shift(bitboard BitBoard, dir Direction) (retval BitBoard) {
+	if dir > 0 {
+		retval = bitboard << uint64(dir)
+	} else {
+		retval = bitboard >> uint64(dir*-1)
 	}
 	return retval
 }
 
-func calculateWPawnMoves(position int) (retval uint64) {
-	row := position / 8
-
-	// Example for white pawn moving forward one square
-	if row < 7 {
-		retval |= 1 << (position + 8)
-	}
-	// Example for white pawn initial double move
-	if row == 1 {
-		retval |= 1 << (position + 16)
-	}
-
-	return retval
-}
-
-func calculateBPawnMoves(position int) (retval uint64) {
-	row := position / 8
-
-	// Example for black pawn moving forward one square
-	if row > 0 {
-		retval |= 1 << (position - 8)
-	}
-	// Example for black pawn initial double move
-	if row == 6 {
-		retval |= 1 << (position - 16)
-	}
-
-	return retval
-}
-
-func calculateKingMoves(position int) (retval uint64) {
-	row := position / 8
-	col := position % 8
-
-	for _, delta := range []int{-1, 0, 1} {
-		for _, epsilon := range []int{-1, 0, 1} {
-			if delta == 0 && epsilon == 0 {
-				continue
-			}
-			newRow, newCol := int(row)+delta, int(col)+epsilon
-			if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
-				retval |= 1 << (uint64(newRow*8 + newCol))
-			}
-		}
-	}
-	return retval
-}
-
-func calculateQueenMoves(position int) (retval uint64) {
-	return calculateRookMoves(position) | calculateBishopMoves(position)
-}
-
-func calculateRookMoves(position int) (retval uint64) {
-	row := position / 8
-	col := position % 8
-
-	// Moves along the row
+func PrintBitBoard(bitboard BitBoard) (retval string) {
 	for i := 0; i < 8; i++ {
-		if i != col {
-			retval |= 1 << (row*8 + i)
-		}
+		retval += reverseStringHelper(fmt.Sprintf("%08b", (bitboard>>(56-8*i))&0xFF)) + "\n"
 	}
-
-	// Moves along the column
-	for i := 0; i < 8; i++ {
-		if i != row {
-			retval |= 1 << (i*8 + col)
-		}
-	}
-
 	return retval
 }
 
-func calculateBishopMoves(position int) (retval uint64) {
-	row := position / 8
-	col := position % 8
-
-	// Diagonals
-	for i, j := row, col; i < 8 && j < 8; i, j = i+1, j+1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
+func reverseStringHelper(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
 	}
-	for i, j := row, col; i < 8 && j >= 0; i, j = i+1, j-1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-	for i, j := row, col; i >= 0 && j < 8; i, j = i-1, j+1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-	for i, j := row, col; i >= 0 && j >= 0; i, j = i-1, j-1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-
-	return retval
-}
-
-func calculateKnightMoves(position int) (retval uint64) {
-	row := position / 8
-	col := position % 8
-
-	deltas := []struct{ dr, dc int }{
-		{2, 1}, {2, -1}, {-2, 1}, {-2, -1},
-		{1, 2}, {1, -2}, {-1, 2}, {-1, -2},
-	}
-
-	for _, delta := range deltas {
-		newRow, newCol := row+delta.dr, col+delta.dc
-		if newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 {
-			retval |= 1 << (newRow*8 + newCol)
-		}
-	}
-
-	return retval
+	return string(runes)
 }

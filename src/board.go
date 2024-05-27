@@ -18,22 +18,10 @@ import (
 */
 
 const StartingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-const NullPosition = byte(255)
 
 type Board struct {
-	Bpawn   BitBoard
-	Bknight BitBoard
-	Brook   BitBoard
-	Bbishop BitBoard
-	Bqueen  BitBoard
-	Bking   BitBoard
-
-	Wpawn   BitBoard
-	Wknight BitBoard
-	Wrook   BitBoard
-	Wbishop BitBoard
-	Wqueen  BitBoard
-	Wking   BitBoard
+	W Pieces // White Pieces
+	B Pieces // Black Pieces
 
 	stateInfoArr []*StateInfo
 
@@ -41,18 +29,18 @@ type Board struct {
 }
 
 func (board *Board) Equal(other *Board) bool {
-	bitBoardsCompare := board.Bpawn.Equal(&other.Bpawn) &&
-		board.Bknight.Equal(&other.Bknight) &&
-		board.Brook.Equal(&other.Brook) &&
-		board.Bbishop.Equal(&other.Bbishop) &&
-		board.Bqueen.Equal(&other.Bqueen) &&
-		board.Bking.Equal(&other.Bking) &&
-		board.Wpawn.Equal(&other.Wpawn) &&
-		board.Wknight.Equal(&other.Wknight) &&
-		board.Wrook.Equal(&other.Wrook) &&
-		board.Wbishop.Equal(&other.Wbishop) &&
-		board.Wqueen.Equal(&other.Wqueen) &&
-		board.Wking.Equal(&other.Wking)
+	bitBoardsCompare := board.B.Pawn == other.B.Pawn &&
+		board.B.Knight == other.B.Knight &&
+		board.B.Rook == other.B.Rook &&
+		board.B.Bishop == other.B.Bishop &&
+		board.B.Queen == other.B.Queen &&
+		board.B.King == other.B.King &&
+		board.W.Pawn == other.W.Pawn &&
+		board.W.Knight == other.W.Knight &&
+		board.W.Rook == other.W.Rook &&
+		board.W.Bishop == other.W.Bishop &&
+		board.W.Queen == other.W.Queen &&
+		board.W.King == other.W.King
 
 	stCompare := board.GetTopState().Equal(other.GetTopState())
 
@@ -113,7 +101,7 @@ func InitFENBoard(FEN string) *Board {
 		stateInfoArr: []*StateInfo{{}},
 	}
 
-	position := byte(56)
+	var position Position = 56
 
 	for _, r := range piecePositions {
 		if r == '/' {
@@ -122,7 +110,7 @@ func InitFENBoard(FEN string) *Board {
 			retval.placeFENonBoard(r, position)
 			position += 1
 		} else if unicode.IsDigit(r) {
-			position += byte(r - '0')
+			position += Position(r - '0')
 		}
 	}
 
@@ -143,9 +131,9 @@ func InitFENBoard(FEN string) *Board {
 	if enPassantSquare != "-" {
 		var col byte = enPassantSquare[0] - 'a'
 		var row byte = enPassantSquare[1] - '1'
-		retval.GetTopState().EnPassantPosition = (row*8 + col)
+		retval.GetTopState().EnPassantPosition = Position(row*8 + col)
 	} else {
-		retval.GetTopState().EnPassantPosition = NullPosition
+		retval.GetTopState().EnPassantPosition = NULL_POSITION
 	}
 
 	retval.GetTopState().IsWhiteTurn = turnColor == "w"
@@ -156,47 +144,47 @@ func InitFENBoard(FEN string) *Board {
 }
 
 // Places single piece denoted by char (i.e. 'p' for black pawn) onto position with empty state
-func (board *Board) placeFENonBoard(r rune, position byte) {
+func (board *Board) placeFENonBoard(r rune, position Position) {
 	thisPiece := NewPiece()
 	switch r {
 	case 'p':
-		thisPiece.ThisBitBoard = &board.Bpawn
+		thisPiece.ThisBitBoard = &board.B.Pawn
 		thisPiece.IsWhite = false
 	case 'r':
-		thisPiece.ThisBitBoard = &board.Brook
+		thisPiece.ThisBitBoard = &board.B.Rook
 		thisPiece.IsWhite = false
 	case 'n':
-		thisPiece.ThisBitBoard = &board.Bknight
+		thisPiece.ThisBitBoard = &board.B.Knight
 		thisPiece.IsWhite = false
 	case 'b':
-		thisPiece.ThisBitBoard = &board.Bbishop
+		thisPiece.ThisBitBoard = &board.B.Bishop
 		thisPiece.IsWhite = false
 	case 'q':
-		thisPiece.ThisBitBoard = &board.Bqueen
+		thisPiece.ThisBitBoard = &board.B.Queen
 		thisPiece.IsWhite = false
 	case 'k':
-		thisPiece.ThisBitBoard = &board.Bking
+		thisPiece.ThisBitBoard = &board.B.King
 		thisPiece.IsWhite = false
 	case 'P':
-		thisPiece.ThisBitBoard = &board.Wpawn
+		thisPiece.ThisBitBoard = &board.W.Pawn
 		thisPiece.IsWhite = true
 	case 'R':
-		thisPiece.ThisBitBoard = &board.Wrook
+		thisPiece.ThisBitBoard = &board.W.Rook
 		thisPiece.IsWhite = true
 	case 'N':
-		thisPiece.ThisBitBoard = &board.Wknight
+		thisPiece.ThisBitBoard = &board.W.Knight
 		thisPiece.IsWhite = true
 	case 'B':
-		thisPiece.ThisBitBoard = &board.Wbishop
+		thisPiece.ThisBitBoard = &board.W.Bishop
 		thisPiece.IsWhite = true
 	case 'Q':
-		thisPiece.ThisBitBoard = &board.Wqueen
+		thisPiece.ThisBitBoard = &board.W.Queen
 		thisPiece.IsWhite = true
 	case 'K':
-		thisPiece.ThisBitBoard = &board.Wking
+		thisPiece.ThisBitBoard = &board.W.King
 		thisPiece.IsWhite = true
 	}
-	thisPiece.ThisBitBoard.PlaceOnBitBoard(position)
+	PlaceOnBitBoard(thisPiece.ThisBitBoard, position)
 	board.PieceInfoArr[position] = thisPiece
 }
 
@@ -208,40 +196,53 @@ func InitPGNBoard(PGN string) *Board {
 // Displays 8x8 board in cmdline
 func (board *Board) DisplayBoard() (retval string) {
 	var boardRep [8][8]rune
-	for _, position := range board.Bpawn.LSBpositions() {
+	Bpawn := board.B.Pawn
+	Brook := board.B.Rook
+	Bknight := board.B.Knight
+	Bbishop := board.B.Bishop
+	Bqueen := board.B.Queen
+	Bking := board.B.King
+	Wpawn := board.W.Pawn
+	Wrook := board.W.Rook
+	Wknight := board.W.Knight
+	Wbishop := board.W.Bishop
+	Wqueen := board.W.Queen
+	Wking := board.W.King
+
+	for position := PopLSB(&Bpawn); position != NULL_POSITION; position = PopLSB(&Bpawn) {
 		boardRep[position/8][position%8] = 'p'
 	}
-	for _, position := range board.Brook.LSBpositions() {
+	for position := PopLSB(&Brook); position != NULL_POSITION; position = PopLSB(&Brook) {
 		boardRep[position/8][position%8] = 'r'
 	}
-	for _, position := range board.Bknight.LSBpositions() {
+	for position := PopLSB(&Bknight); position != NULL_POSITION; position = PopLSB(&Bknight) {
 		boardRep[position/8][position%8] = 'n'
 	}
-	for _, position := range board.Bbishop.LSBpositions() {
+	for position := PopLSB(&Bbishop); position != NULL_POSITION; position = PopLSB(&Bbishop) {
 		boardRep[position/8][position%8] = 'b'
 	}
-	for _, position := range board.Bqueen.LSBpositions() {
+	for position := PopLSB(&Bqueen); position != NULL_POSITION; position = PopLSB(&Bqueen) {
 		boardRep[position/8][position%8] = 'q'
 	}
-	for _, position := range board.Bking.LSBpositions() {
+	for position := PopLSB(&Bking); position != NULL_POSITION; position = PopLSB(&Bking) {
 		boardRep[position/8][position%8] = 'k'
 	}
-	for _, position := range board.Wpawn.LSBpositions() {
+	for position := PopLSB(&Wpawn); position != NULL_POSITION; position = PopLSB(&Wpawn) {
 		boardRep[position/8][position%8] = 'P'
 	}
-	for _, position := range board.Wrook.LSBpositions() {
+	for position := PopLSB(&Wrook); position != NULL_POSITION; position = PopLSB(&Wrook) {
 		boardRep[position/8][position%8] = 'R'
 	}
-	for _, position := range board.Wknight.LSBpositions() {
+	for position := PopLSB(&Wknight); position != NULL_POSITION; position = PopLSB(&Wknight) {
 		boardRep[position/8][position%8] = 'N'
 	}
-	for _, position := range board.Wbishop.LSBpositions() {
+	for position := PopLSB(&Wbishop); position != NULL_POSITION; position = PopLSB(&Wbishop) {
 		boardRep[position/8][position%8] = 'B'
 	}
-	for _, position := range board.Wqueen.LSBpositions() {
+	for position := PopLSB(&Wqueen); position != NULL_POSITION; position = PopLSB(&Wqueen) {
 		boardRep[position/8][position%8] = 'Q'
 	}
-	for _, position := range board.Wking.LSBpositions() {
+	for position := PopLSB(&Wking); position != NULL_POSITION; position = PopLSB(&Wking) {
 		boardRep[position/8][position%8] = 'K'
 	}
 	retval += "-----------------" + "\n"

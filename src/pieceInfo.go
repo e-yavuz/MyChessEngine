@@ -6,7 +6,7 @@ type PieceInfo struct {
 }
 
 func (pi *PieceInfo) Equal(other *PieceInfo) bool {
-	return pi.ThisBitBoard.Equal(other.ThisBitBoard) && pi.IsWhite == other.IsWhite
+	return *pi.ThisBitBoard == *other.ThisBitBoard && pi.IsWhite == other.IsWhite
 }
 
 // Constructor for new piece with empty state

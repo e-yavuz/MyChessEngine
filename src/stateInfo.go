@@ -1,7 +1,7 @@
 package chessengine
 
 type StateInfo struct {
-	EnPassantPosition byte
+	EnPassantPosition Position
 	IsWhiteTurn       bool
 
 	CastleWKing  bool
@@ -12,6 +12,7 @@ type StateInfo struct {
 	DrawCounter int
 	TurnCounter int
 
+	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
 	Capture              *PieceInfo
 	PrePromotionBitBoard *BitBoard
 }
@@ -25,7 +26,7 @@ func (si *StateInfo) Equal(other *StateInfo) bool {
 	}
 
 	if si.PrePromotionBitBoard != nil && other.PrePromotionBitBoard != nil {
-		promotionCompare = si.PrePromotionBitBoard.Equal(other.PrePromotionBitBoard)
+		promotionCompare = *si.PrePromotionBitBoard == *other.PrePromotionBitBoard
 	} else {
 		promotionCompare = si.PrePromotionBitBoard == other.PrePromotionBitBoard
 	}
