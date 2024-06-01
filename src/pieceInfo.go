@@ -1,12 +1,26 @@
 package chessengine
 
 type PieceInfo struct {
-	ThisBitBoard *BitBoard
-	IsWhite      bool
+	thisBitBoard *BitBoard
+	isWhite      bool
+	pieceTYPE    int
+}
+
+type CheckerInfo struct {
+	pieceInfo       PieceInfo
+	position        Position
+	intermediaryRay BitBoard
+}
+
+type PinnedPieceInfo struct {
+	checkerInfo   CheckerInfo
+	pieceInfo     PieceInfo
+	position      Position
+	possibleQuiet BitBoard
 }
 
 func (pi *PieceInfo) Equal(other *PieceInfo) bool {
-	return *pi.ThisBitBoard == *other.ThisBitBoard && pi.IsWhite == other.IsWhite
+	return *pi.thisBitBoard == *other.thisBitBoard && pi.isWhite == other.isWhite
 }
 
 // Constructor for new piece with empty state

@@ -1,6 +1,9 @@
 package chessengine
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 /*
 	Contains
@@ -9,7 +12,7 @@ import "fmt"
 */
 
 const (
-	A1 = iota
+	A1 Position = iota
 	B1
 	C1
 	D1
@@ -77,20 +80,66 @@ const (
 
 const NULL_MOVE Move = 0
 
-type Position = uint16
+type Position = byte
 type Move = uint16
 type Flag = uint16
 
+func PositionToSquare(position Position) string {
+	col := position & 0b111
+	row := (position >> 3) & 0b111
+
+	return string(rune('a'+col)) + string(rune('1'+row))
+}
+
+// Returns a bitboard of 1's between the given two positions, (excluding the two positions) if they are along a diagonal, row, or column
+func GetIntermediaryRay(from, to Position) BitBoard {
+	if from == to {
+		return 0
+	}
+
+	fromCol := from & 0b111
+	toCol := to & 0b111
+	fromRow := (from >> 3) & 0b111
+	toRow := (to >> 3) & 0b111
+	// If on same row
+	if fromRow == toRow {
+		correctRow := Shift(Row1Full, N*int8(fromRow))
+		return Shift(correctRow, E*int8(min(fromCol, toCol)+1)) & Shift(correctRow, W*int8(1+7-max(fromCol, toCol)))
+	}
+	// If on same column
+	if fromCol == toCol {
+		correctCol := Shift(Col1Full, E*int8(fromCol))
+		return Shift(correctCol, N*int8(min(fromRow, toRow)+1)) & Shift(correctCol, S*int8(1+7-max(fromRow, toRow)))
+	}
+	// If on same diagonal
+	if abs(int(fromCol)-int(toCol)) == abs(int(fromRow)-int(toRow)) {
+		excessDiagonal := bishopCalculatedMoves[from] & bishopCalculatedMoves[to]
+		// Idea is to move North and South to strip the outer bits
+		northRemoved := Shift(Shift(excessDiagonal, N*int8(1+7-max(fromRow, toRow))), -N*int8(1+7-max(fromRow, toRow)))
+		southRemoved := Shift(Shift(excessDiagonal, S*int8(1+min(fromRow, toRow))), -S*int8(1+min(fromRow, toRow)))
+		return northRemoved & southRemoved
+	}
+
+	return 0
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 func NewMove(from, to Position, flag uint16) Move {
-	return (from & 0b111111) + ((to & 0b111111) << 6) + (flag << 12)
+	return Move(from) + (Move(to) << 6) + (flag << 12)
 }
 
 func GetStartingPosition(move Move) Position {
-	return move & 0x3F
+	return Position(move & 0x3F)
 }
 
 func GetTargetPosition(move Move) Position {
-	return (move & 0xFC0) >> 6
+	return Position((move & 0xFC0) >> 6)
 }
 
 /*
@@ -115,11 +164,42 @@ const (
 	queenCastleFlag        Flag = 0b0011
 	captureFlag            Flag = 0b0100
 	epCaptureFlag          Flag = 0b0101
-	knightPromotionFlag    Flag = 0b1000
-	queenPromotionFlag     Flag = 0b1011
+	knightPromotionFlag    Flag = 0b1000 // 0
+	rookPromotionFlag      Flag = 0b1001 // 1
+	bishopPromotionFlag    Flag = 0b1010 // 2
+	queenPromotionFlag     Flag = 0b1011 // 3
 	knightPromoCaptureFlag Flag = 0b1100
+	rookPromoCaptureFlag   Flag = 0b1101
+	bishopPromoCaptureFlag Flag = 0b1110
 	queenPromoCaptureFlag  Flag = 0b1111
 )
+
+func FlagToString(flag Flag) string {
+	switch flag {
+	case quietFlag:
+		return "quietFlag"
+	case doublePawnPushFlag:
+		return "doublePawnPushFlag"
+	case kingCastleFlag:
+		return "kingCastleFlag"
+	case queenCastleFlag:
+		return "queenCastleFlag"
+	case captureFlag:
+		return "captureFlag"
+	case epCaptureFlag:
+		return "epCaptureFlag"
+	case knightPromotionFlag:
+		return "knightPromotionFlag"
+	case queenPromotionFlag:
+		return "queenPromotionFlag"
+	case knightPromoCaptureFlag:
+		return "knightPromoCaptureFlag"
+	case queenPromoCaptureFlag:
+		return "queenPromoCaptureFlag"
+	default:
+		return "InvalidFlag"
+	}
+}
 
 func GetFlag(move Move) Flag {
 	return move >> 12
@@ -127,44 +207,47 @@ func GetFlag(move Move) Flag {
 
 // Invariant: Assumes move is legal
 func (board *Board) MakeMove(move Move) {
+	if move == NULL_MOVE {
+		return
+	}
 
 	from := GetStartingPosition(move)
 	to := GetTargetPosition(move)
 
 	piece := board.PieceInfoArr[from]
-	prev := board.GetTopState()
+	currentState := board.GetTopState()
 
-	// Copy over from prev to a new state
+	// Copy over from currentState to a new state
 	st := &StateInfo{
-		IsWhiteTurn:       !prev.IsWhiteTurn,
-		DrawCounter:       prev.DrawCounter + 1,
-		TurnCounter:       prev.TurnCounter,
-		CastleWKing:       prev.CastleWKing,
-		CastleBKing:       prev.CastleBKing,
-		CastleWQueen:      prev.CastleWQueen,
-		CastleBQueen:      prev.CastleBQueen,
-		EnPassantPosition: NULL_POSITION,
+		IsWhiteTurn:       !currentState.IsWhiteTurn,
+		HalfMoveClock:     currentState.HalfMoveClock + 1,
+		TurnCounter:       currentState.TurnCounter,
+		CastleWKing:       currentState.CastleWKing,
+		CastleBKing:       currentState.CastleBKing,
+		CastleWQueen:      currentState.CastleWQueen,
+		CastleBQueen:      currentState.CastleBQueen,
+		EnPassantPosition: INVALID_POSITION,
 		PrecedentMove:     move,
 	}
 
-	if !prev.IsWhiteTurn {
+	if !currentState.IsWhiteTurn {
 		st.TurnCounter += 1
-		if piece.ThisBitBoard == &board.B.Pawn {
-			st.DrawCounter = 0
+		if piece.thisBitBoard == &board.B.Pawn {
+			st.HalfMoveClock = 0
 		}
-	} else if piece.ThisBitBoard == &board.W.Pawn {
-		st.DrawCounter = 0
+	} else if piece.thisBitBoard == &board.W.Pawn {
+		st.HalfMoveClock = 0
 	}
 
 	// Start by removing this piece from the bitBoard it was originally, it is essentially in limbo now
-	RemoveFromBitBoard(piece.ThisBitBoard, GetStartingPosition(move))
+	RemoveFromBitBoard(piece.thisBitBoard, GetStartingPosition(move))
 
 	// Now need to check flags to see what is happening!
 	switch GetFlag(move) {
 	case doublePawnPushFlag:
 		st.EnPassantPosition = (from + to) / 2
 	case kingCastleFlag:
-		if piece.IsWhite {
+		if piece.isWhite {
 			st.CastleWKing = false
 			st.CastleWQueen = false
 			board.swapPiecePositions(&board.W.Rook, to+1, to-1)
@@ -174,44 +257,100 @@ func (board *Board) MakeMove(move Move) {
 			board.swapPiecePositions(&board.B.Rook, to+1, to-1)
 		}
 	case queenCastleFlag:
-		if piece.IsWhite {
+		if piece.isWhite {
 			st.CastleWKing = false
 			st.CastleWQueen = false
-			board.swapPiecePositions(&board.W.Rook, to-1, to+1)
+			board.swapPiecePositions(&board.W.Rook, to-2, to+1)
 		} else {
 			st.CastleBKing = false
 			st.CastleBQueen = false
-			board.swapPiecePositions(&board.B.Rook, to-1, to+1)
+			board.swapPiecePositions(&board.B.Rook, to-2, to+1)
 		}
 	}
 
+	// Capture move
 	if captureFlag&GetFlag(move) > 0 {
-		RemoveFromBitBoard(board.PieceInfoArr[to].ThisBitBoard, to)
-		st.Capture = board.PieceInfoArr[to]
-		st.DrawCounter = 0
+		if GetFlag(move) == epCaptureFlag {
+			if currentState.IsWhiteTurn {
+				RemoveFromBitBoard(&board.B.Pawn, to-8)
+				st.Capture = board.PieceInfoArr[to-8]
+				board.PieceInfoArr[to-8] = nil
+			} else {
+				RemoveFromBitBoard(&board.W.Pawn, to+8)
+				st.Capture = board.PieceInfoArr[to+8]
+				board.PieceInfoArr[to+8] = nil
+			}
+		} else {
+			RemoveFromBitBoard(board.PieceInfoArr[to].thisBitBoard, to)
+			st.Capture = board.PieceInfoArr[to]
+		}
+		// Rook Castle Partner captured -> Cannot Castle that side
+		if currentState.CastleWKing && to == 7 {
+			st.CastleWKing = false
+		} else if currentState.CastleWQueen && to == 0 {
+			st.CastleWQueen = false
+		} else if currentState.CastleBKing && to == 63 {
+			st.CastleBKing = false
+		} else if currentState.CastleBQueen && to == 56 {
+			st.CastleBQueen = false
+		}
+		// All captures reset half move clock
+		st.HalfMoveClock = 0
 	}
-
+	// Update PieceInfoArr from -> to
 	board.PieceInfoArr[to] = piece
 	board.PieceInfoArr[from] = nil
-
+	// Promotion move
 	if GetFlag(move)&0b1000 > 0 {
-		st.PrePromotionBitBoard = piece.ThisBitBoard
-		switch GetFlag(move) & 1 {
+		st.PrePromotionBitBoard = piece.thisBitBoard
+		switch GetFlag(move) & 0b11 {
 		case 0: // Knight
-			if piece.IsWhite {
-				piece.ThisBitBoard = &board.W.Knight
+			if piece.isWhite {
+				piece.thisBitBoard = &board.W.Knight
 			} else {
-				piece.ThisBitBoard = &board.B.Knight
+				piece.thisBitBoard = &board.B.Knight
 			}
-		case 1: // Queen
-			if piece.IsWhite {
-				piece.ThisBitBoard = &board.W.Queen
+		case 1: // Rook
+			if piece.isWhite {
+				piece.thisBitBoard = &board.W.Rook
 			} else {
-				piece.ThisBitBoard = &board.B.Queen
+				piece.thisBitBoard = &board.B.Rook
+			}
+		case 2: // Bishop
+			if piece.isWhite {
+				piece.thisBitBoard = &board.W.Bishop
+			} else {
+				piece.thisBitBoard = &board.B.Bishop
+			}
+		case 3: // Queen
+			if piece.isWhite {
+				piece.thisBitBoard = &board.W.Queen
+			} else {
+				piece.thisBitBoard = &board.B.Queen
 			}
 		}
 	}
-	PlaceOnBitBoard(piece.ThisBitBoard, to)
+	PlaceOnBitBoard(piece.thisBitBoard, to)
+	// Rooks moving -> Castle side negated
+	// Hard coded because faster than map lookup?
+	if st.CastleWKing && piece.pieceTYPE == ROOK && from == 7 {
+		st.CastleWKing = false
+	} else if st.CastleWQueen && piece.pieceTYPE == ROOK && from == 0 {
+		st.CastleWQueen = false
+	} else if st.CastleBKing && piece.pieceTYPE == ROOK && from == 63 {
+		st.CastleBKing = false
+	} else if st.CastleBQueen && piece.pieceTYPE == ROOK && from == 56 {
+		st.CastleBQueen = false
+	}
+	// King moving -> Both castle sides negated
+	if (st.CastleWKing || st.CastleWQueen) && piece.thisBitBoard == &board.W.King {
+		st.CastleWKing = false
+		st.CastleWQueen = false
+	}
+	if (st.CastleBKing || st.CastleBQueen) && piece.thisBitBoard == &board.B.King {
+		st.CastleBKing = false
+		st.CastleBQueen = false
+	}
 
 	board.PushNewState(st)
 }
@@ -228,22 +367,26 @@ func (board *Board) UnMakeMove() {
 
 	piece := board.PieceInfoArr[to]
 
+	if piece == nil {
+		log.Printf("From: %d, To: %d", from, to)
+	}
+
 	// Start by removing this piece from the bitBoard it was originally, it is essentially in limbo now
-	RemoveFromBitBoard(piece.ThisBitBoard, to)
+	RemoveFromBitBoard(piece.thisBitBoard, to)
 
 	// Reverse engineer castling
 	switch GetFlag(move) {
 	case kingCastleFlag: // From left of king's "to" position to his right
-		if piece.IsWhite {
+		if piece.isWhite {
 			board.swapPiecePositions(&board.W.Rook, to-1, to+1)
 		} else {
 			board.swapPiecePositions(&board.B.Rook, to-1, to+1)
 		}
 	case queenCastleFlag: // From right of king's "to" position to his left
-		if piece.IsWhite {
-			board.swapPiecePositions(&board.W.Rook, to+1, to-1)
+		if piece.isWhite {
+			board.swapPiecePositions(&board.W.Rook, to+1, to-2)
 		} else {
-			board.swapPiecePositions(&board.B.Rook, to+1, to-1)
+			board.swapPiecePositions(&board.B.Rook, to+1, to-2)
 		}
 	}
 
@@ -253,19 +396,29 @@ func (board *Board) UnMakeMove() {
 	// If move was a capture, replace back captured piece in InfoArr on "to" and move it onto its bitboard,
 	// otherwise simply nil the infoarr spot as nothing exists there now
 	if captureFlag&GetFlag(move) > 0 {
-		board.PieceInfoArr[to] = topState.Capture
-		PlaceOnBitBoard(topState.Capture.ThisBitBoard, to)
+		if GetFlag(move) == epCaptureFlag {
+			if topState.IsWhiteTurn {
+				board.PieceInfoArr[to+8] = topState.Capture
+				PlaceOnBitBoard(topState.Capture.thisBitBoard, to+8)
+			} else {
+				board.PieceInfoArr[to-8] = topState.Capture
+				PlaceOnBitBoard(topState.Capture.thisBitBoard, to-8)
+			}
+		} else {
+			board.PieceInfoArr[to] = topState.Capture
+			PlaceOnBitBoard(topState.Capture.thisBitBoard, to)
+		}
 	} else {
 		board.PieceInfoArr[to] = nil
 	}
 
 	// If promoted, get the bitboard the piece belonged to pre-promotion
 	if GetFlag(move)&0b1000 > 0 {
-		piece.ThisBitBoard = topState.PrePromotionBitBoard
+		piece.thisBitBoard = topState.PrePromotionBitBoard
 	}
 
 	// Place back onto original bitboard position
-	PlaceOnBitBoard(piece.ThisBitBoard, from)
+	PlaceOnBitBoard(piece.thisBitBoard, from)
 
 }
 
@@ -274,4 +427,22 @@ func (board *Board) swapPiecePositions(bitboard *BitBoard, startPosition, target
 	PlaceOnBitBoard(bitboard, targetPosition)
 	board.PieceInfoArr[targetPosition] = board.PieceInfoArr[startPosition]
 	board.PieceInfoArr[startPosition] = nil
+}
+
+func MoveToStringWithFlag(move Move) string {
+	return fmt.Sprintf("%s%s, flag: %s", PositionToSquare(GetStartingPosition(move)), PositionToSquare(GetTargetPosition(move)), FlagToString(GetFlag(move)))
+}
+
+func MoveToString(move Move) string {
+	promoSuffix := ""
+	if GetFlag(move) == queenPromoCaptureFlag || GetFlag(move) == queenPromotionFlag {
+		promoSuffix = "q"
+	} else if GetFlag(move) == knightPromoCaptureFlag || GetFlag(move) == knightPromotionFlag {
+		promoSuffix = "n"
+	} else if GetFlag(move) == rookPromoCaptureFlag || GetFlag(move) == rookPromotionFlag {
+		promoSuffix = "r"
+	} else if GetFlag(move) == bishopPromoCaptureFlag || GetFlag(move) == bishopPromotionFlag {
+		promoSuffix = "b"
+	}
+	return fmt.Sprintf("%s%s%s", PositionToSquare(GetStartingPosition(move)), PositionToSquare(GetTargetPosition(move)), promoSuffix)
 }

@@ -3,81 +3,80 @@ package chessengine
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"time"
 )
 
-const (
-	ROOK = iota
-	BISHOP
-)
+var bishopCalculatedMoves [64]BitBoard // pre-calculated moves for a bishop on an empty 8x8 board
+var ROOK_MAGIC_SLICE [64][]BitBoard
+var BISHOP_MAGIC_SLICE [64][]BitBoard
+var magicRookNumbers, magicRookShifts, magicBishopNumbers, magicBishopShifts [64]uint64
 
-var RookLookupTable [64]map[BitBoard]BitBoard
-var BishopLookupTable [64]map[BitBoard]BitBoard
+type ValidMoveGenerationFunc func(Position, BitBoard) BitBoard
+type GetPossiblesFunc func(Position) BitBoard
 
-func calculateRookMoves(position int) (retval BitBoard) {
-	row := position / 8
-	col := position % 8
+func init() {
+	for position := 0; position < 64; position++ {
+		bishopMoves := uint64(0)
+		row := (position & 0b111000) >> 3
+		col := position & 0b000111
 
-	// Moves along the row
-	for i := 0; i < 8; i++ {
-		if i != col {
-			retval |= 1 << (row*8 + i)
+		// Diagonals
+		for i, j := row, col; i < 8 && j < 8; i, j = i+1, j+1 {
+			if i*8+j != position {
+				bishopMoves |= 1 << (i*8 + j)
+			}
 		}
-	}
-
-	// Moves along the column
-	for i := 0; i < 8; i++ {
-		if i != row {
-			retval |= 1 << (i*8 + col)
+		for i, j := row, col; i < 8 && j >= 0; i, j = i+1, j-1 {
+			if i*8+j != position {
+				bishopMoves |= 1 << (i*8 + j)
+			}
 		}
-	}
+		for i, j := row, col; i >= 0 && j < 8; i, j = i-1, j+1 {
+			if i*8+j != position {
+				bishopMoves |= 1 << (i*8 + j)
+			}
+		}
+		for i, j := row, col; i >= 0 && j >= 0; i, j = i-1, j-1 {
+			if i*8+j != position {
+				bishopMoves |= 1 << (i*8 + j)
+			}
+		}
 
-	return retval
+		bishopCalculatedMoves[position] = bishopMoves
+	}
 }
 
-func calculateBishopMoves(position int) (retval BitBoard) {
-	row := position / 8
-	col := position % 8
+// returns bitboard of all possible rook positions (excluding current position) using pre-calculated consts
+func RookMask(position Position) (retval BitBoard) {
+	row := (position & 0b111000) >> 3
+	col := position & 0b000111
 
-	// Diagonals
-	for i, j := row, col; i < 8 && j < 8; i, j = i+1, j+1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-	for i, j := row, col; i < 8 && j >= 0; i, j = i+1, j-1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-	for i, j := row, col; i >= 0 && j < 8; i, j = i-1, j+1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
-	for i, j := row, col; i >= 0 && j >= 0; i, j = i-1, j-1 {
-		if i*8+j != position {
-			retval |= 1 << (i*8 + j)
-		}
-	}
+	retval |= (Col1Full<<col | Row1Full<<(row*8)) & ^(uint64(1) << position)
 
-	return retval
+	return SlidingMask(retval, position)
 }
 
-func getMoveMask(bitboard BitBoard, position int) BitBoard {
-	if position/8 != 0 {
+// returns bitboard of all possible bishop positions (excluding current position) using pre-calculated array
+func BishopMask(position Position) (retval BitBoard) {
+	return SlidingMask(bishopCalculatedMoves[position], position)
+}
+
+func SlidingMask(bitboard BitBoard, position Position) BitBoard {
+	row := (position & 0b111000) >> 3
+	col := position & 0b000111
+	if row != 0 {
 		bitboard &= ^Row1Full
 	}
-	if position/8 != 7 {
+	if row != 7 {
 		bitboard &= ^Row8Full
 	}
-	if position%8 != 0 {
+	if col != 0 {
 		bitboard &= ^Col1Full
 	}
-	if position%8 != 7 {
+	if col != 7 {
 		bitboard &= ^Col8Full
 	}
 	return bitboard
@@ -86,7 +85,7 @@ func getMoveMask(bitboard BitBoard, position int) BitBoard {
 func generateBlockersBitBoard(moveMask BitBoard) []BitBoard {
 	indexCount := moveMask
 	retvalSize := 1
-	for ind := PopLSB(&indexCount); ind != NULL_POSITION; ind = PopLSB(&indexCount) {
+	for ind := PopLSB(&indexCount); ind != INVALID_POSITION; ind = PopLSB(&indexCount) {
 		retvalSize <<= 1
 	}
 
@@ -95,7 +94,7 @@ func generateBlockersBitBoard(moveMask BitBoard) []BitBoard {
 	for patternIndex := 0; patternIndex < retvalSize; patternIndex++ {
 		temp := moveMask
 		i := 0
-		for bitIndex := PopLSB(&temp); bitIndex != NULL_POSITION; i++ {
+		for bitIndex := PopLSB(&temp); bitIndex != INVALID_POSITION; i++ {
 			bit := (patternIndex >> i) & 1
 			retval[patternIndex] |= uint64(bit) << bitIndex
 			bitIndex = PopLSB(&temp)
@@ -105,7 +104,7 @@ func generateBlockersBitBoard(moveMask BitBoard) []BitBoard {
 	return retval
 }
 
-func possibleRookMovesBitBoard(position int, blockerPattern BitBoard) (retval BitBoard) {
+func manualValidRookMovesBitBoard(position Position, blockerPattern BitBoard) (retval BitBoard) {
 	dirArr := []Direction{N, E, S, W}
 	for _, dir := range dirArr { // 4 directions
 		prevMoveMarker := uint64(1) << position
@@ -127,7 +126,7 @@ func possibleRookMovesBitBoard(position int, blockerPattern BitBoard) (retval Bi
 	return retval
 }
 
-func possibleBishopMovesBitBoard(position int, blockerPattern BitBoard) (retval BitBoard) {
+func manualValidBishopMovesBitBoard(position Position, blockerPattern BitBoard) (retval BitBoard) {
 	dirArr := []Direction{N + E, E + S, S + W, W + N}
 	for _, dir := range dirArr { // 4 directions
 		prevMoveMarker := uint64(1) << position
@@ -149,46 +148,17 @@ func possibleBishopMovesBitBoard(position int, blockerPattern BitBoard) (retval 
 	return retval
 }
 
-func CreateLookupTables() {
-	createRookTable()
-	createBishopTable()
-}
-
-func createRookTable() {
-	for i := 0; i < 64; i++ {
-		moveMask := getMoveMask(calculateRookMoves(i), i)
-		blockerPatterns := generateBlockersBitBoard(moveMask)
-		RookLookupTable[i] = make(map[BitBoard]BitBoard, len(blockerPatterns))
-		for _, blockerPattern := range blockerPatterns {
-			legalMoveBitBoard := possibleRookMovesBitBoard(i, blockerPattern)
-			RookLookupTable[i][blockerPattern] = legalMoveBitBoard
-		}
-	}
-}
-
-func createBishopTable() {
-	for i := 0; i < 64; i++ {
-		moveMask := getMoveMask(calculateBishopMoves(i), i)
-		blockerPatterns := generateBlockersBitBoard(moveMask)
-		BishopLookupTable[i] = make(map[BitBoard]BitBoard, len(blockerPatterns))
-		for _, blockerPattern := range blockerPatterns {
-			legalMoveBitBoard := possibleBishopMovesBitBoard(i, blockerPattern)
-			BishopLookupTable[i][blockerPattern] = legalMoveBitBoard
-		}
-	}
-}
-
 func magicRookBlockers() (retval [64][]BitBoard) {
-	for i := 0; i < 64; i++ {
-		moveMask := getMoveMask(calculateRookMoves(i), i)
+	for i := Position(0); i < 64; i++ {
+		moveMask := RookMask(i)
 		retval[i] = generateBlockersBitBoard(moveMask)
 	}
 	return retval
 }
 
 func magicBishopBlockers() (retval [64][]BitBoard) {
-	for i := 0; i < 64; i++ {
-		moveMask := getMoveMask(calculateBishopMoves(i), i)
+	for i := Position(0); i < 64; i++ {
+		moveMask := BishopMask(i)
 		retval[i] = generateBlockersBitBoard(moveMask)
 	}
 	return retval
@@ -234,7 +204,7 @@ func magicNumberGeneration(seed int64, ctx context.Context, filePath string, bes
 						bestSizes[i] = maxSize
 						bestShifts[i] = shift
 						bestNumbers[i] = currentNumber
-						fmt.Printf("[%d] Improved\n\tNumber: %d\n\tShift: %d\n\tSize: %d\n\tMemory: %fKB\n",
+						log.Printf("[%d] Improved\n\tNumber: %d\n\tShift: %d\n\tSize: %d\n\tMemory: %fKB\n",
 							i, currentNumber, shift, maxSize, float64(maxSize)*64/1024)
 					}
 					shift += 1
@@ -250,11 +220,11 @@ func magicNumberInitGeneration(seed int64, ctx context.Context, filePath string,
 }
 
 func magicNumberFileGeneration(seed int64, ctx context.Context, filePath string, blockers [64][]uint64) {
-	out, err := readMagicNumberFiles(filePath)
+	numbers, shifts, sizes, err := readMagicNumberFiles(filePath)
 	if err != nil {
 		panic(err)
 	} else {
-		magicNumberGeneration(seed, ctx, filePath, out[0], out[1], out[2], blockers)
+		magicNumberGeneration(seed, ctx, filePath, numbers, shifts, sizes, blockers)
 	}
 }
 
@@ -322,11 +292,12 @@ func writeMagicNumberFiles(filename string, data ...[64]uint64) error {
 }
 
 // Function to read multiple slices of uint64 from a binary file
-func readMagicNumberFiles(filename string) ([][64]uint64, error) {
+// for magic file, output order is Number, Shift, and Size (1, 2, and 3 return values respectively)
+func readMagicNumberFiles(filename string) ([64]uint64, [64]uint64, [64]uint64, error) {
 	// Open the file for reading
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return [64]uint64{}, [64]uint64{}, [64]uint64{}, err
 	}
 	defer file.Close()
 
@@ -334,22 +305,66 @@ func readMagicNumberFiles(filename string) ([][64]uint64, error) {
 	var numArrays uint64
 	err = binary.Read(file, binary.LittleEndian, &numArrays)
 	if err != nil {
-		return nil, err
+		return [64]uint64{}, [64]uint64{}, [64]uint64{}, err
 	}
 
 	// Read each array
-	data := make([][64]uint64, numArrays)
+	var data [3][64]uint64
 	for i := uint64(0); i < numArrays; i++ {
 		// Read the array data directly into the fixed-size array
 		err = binary.Read(file, binary.LittleEndian, &data[i])
 		if err != nil {
-			return nil, err
+			return [64]uint64{}, [64]uint64{}, [64]uint64{}, err
 		}
 	}
 
-	return data, nil
+	return data[0], data[1], data[2], nil
 }
 
-// func InitMagicBitBoardTable(rookFile string, bishopFile string) {
+func InitMagicBitBoardTable(rookFile string, bishopFile string) {
+	rookMagicNumbers, rookMagicShift, rookMagicSizes, err := readMagicNumberFiles(rookFile)
+	if err != nil {
+		panic(err)
+	}
+	bishopMagicNumbers, bishopMagicShift, bishopMagicSizes, err := readMagicNumberFiles(bishopFile)
+	if err != nil {
+		panic(err)
+	}
+	// Sets up the global magic Arrays
+	createMagicArray(&rookMagicNumbers, &rookMagicShift, &rookMagicSizes, &ROOK_MAGIC_SLICE, RookMask, manualValidRookMovesBitBoard)
+	createMagicArray(&bishopMagicNumbers, &bishopMagicShift, &bishopMagicSizes, &BISHOP_MAGIC_SLICE, BishopMask, manualValidBishopMovesBitBoard)
+	// Moves local variables to global, protected variables for use in Get functions
+	magicRookNumbers = rookMagicNumbers
+	magicRookShifts = rookMagicShift
+	magicBishopNumbers = bishopMagicNumbers
+	magicBishopShifts = bishopMagicShift
+}
 
-// }
+func createMagicArray(magicNumbers, magicShifts, magicSizes *[64]uint64, globalMagicArray *[64][]BitBoard, getMoves GetPossiblesFunc, possibleMoves ValidMoveGenerationFunc) {
+	for i := Position(0); i < 64; i++ {
+		moveMask := getMoves(i)
+		blockerPatterns := generateBlockersBitBoard(moveMask)
+		(*globalMagicArray)[i] = make([]uint64, (*magicSizes)[i]+1)
+		for _, blockerPattern := range blockerPatterns {
+			legalMoveBitBoard := possibleMoves(i, blockerPattern)
+			(*globalMagicArray)[i][(blockerPattern*(*magicNumbers)[i])>>(*magicShifts)[i]] = legalMoveBitBoard
+		}
+	}
+}
+
+// Multiplies blocker bit board by corresponding magic Number, shifts with magic shift, then returns legal move BitBoard
+// Assumes input bitBoard and position are valid, breaks otherwise
+func GetRookMoves(position Position, blockerBitBoard BitBoard) BitBoard {
+	if position == INVALID_POSITION {
+		panic("wtf")
+	}
+	shiftedIndex := (blockerBitBoard * magicRookNumbers[position]) >> magicRookShifts[position]
+	return ROOK_MAGIC_SLICE[position][shiftedIndex]
+}
+
+// Multiplies blocker bit board by corresponding magic Number, shifts with magic shift, then returns legal move BitBoard
+// Assumes input bitBoard and position are valid, breaks otherwise
+func GetBishopMoves(position Position, blockerBitBoard BitBoard) BitBoard {
+	shiftedIndex := (blockerBitBoard * magicBishopNumbers[position]) >> magicBishopShifts[position]
+	return BISHOP_MAGIC_SLICE[position][shiftedIndex]
+}

@@ -9,4 +9,6 @@ type Pieces struct {
 	King   BitBoard
 }
 
-
+func (pieces *Pieces) OccupancyBitBoard() BitBoard {
+	return pieces.Pawn | pieces.Knight | pieces.Rook | pieces.Bishop | pieces.Queen | pieces.King
+}

@@ -4,6 +4,7 @@ import "fmt"
 
 // Bitmask for all possible movement for each piece on a 8x8 board
 var (
+	Full             BitBoard = 0xFFFFFFFFFFFFFFFF
 	Row1Full         BitBoard = 0xFF
 	Row2Full         BitBoard = 0xFF00
 	Row7Full         BitBoard = 0xFF000000000000
@@ -16,7 +17,7 @@ var (
 )
 
 const (
-	NULL_POSITION uint16 = 65535
+	INVALID_POSITION Position = 0xFF
 )
 
 type BitBoard = uint64
@@ -31,7 +32,7 @@ func RemoveFromBitBoard(bitboard *BitBoard, position Position) {
 
 func PopLSB(bitboard *BitBoard) Position {
 	if *bitboard == 0 {
-		return NULL_POSITION
+		return INVALID_POSITION
 	}
 	var index Position = 0
 	var mask BitBoard = 1
@@ -52,7 +53,7 @@ func Shift(bitboard BitBoard, dir Direction) (retval BitBoard) {
 	return retval
 }
 
-func PrintBitBoard(bitboard BitBoard) (retval string) {
+func BitBoardToString(bitboard BitBoard) (retval string) {
 	for i := 0; i < 8; i++ {
 		retval += reverseStringHelper(fmt.Sprintf("%08b", (bitboard>>(56-8*i))&0xFF)) + "\n"
 	}

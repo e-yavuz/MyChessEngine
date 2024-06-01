@@ -9,8 +9,8 @@ type StateInfo struct {
 	CastleWQueen bool
 	CastleBQueen bool
 
-	DrawCounter int
-	TurnCounter int
+	HalfMoveClock int
+	TurnCounter   int
 
 	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
 	Capture              *PieceInfo
@@ -37,7 +37,7 @@ func (si *StateInfo) Equal(other *StateInfo) bool {
 		si.CastleBKing == other.CastleBKing &&
 		si.CastleWQueen == other.CastleWQueen &&
 		si.CastleBQueen == other.CastleBQueen &&
-		si.DrawCounter == other.DrawCounter &&
+		si.HalfMoveClock == other.HalfMoveClock &&
 		si.TurnCounter == other.TurnCounter
 
 	return captureCompare && promotionCompare && valueCompare
