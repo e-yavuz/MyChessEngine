@@ -4,7 +4,11 @@ const (
 	CAPTURE = iota
 	EVASION
 	QUIET
-	PAWN
+	
+)
+
+const (
+	PAWN = iota
 	KNIGHT
 	ROOK
 	BISHOP
@@ -331,7 +335,7 @@ sliding enemy piece, and &it with friendly occupancy board, if there is 0 pieces
 goes into the checkers listif only 1 friendly piece, then add that piece to pinned pieces list of
 []PieceInfo if 2 or more, then ignore the sliding piece!
 */
-func observeCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesBitBoard BitBoard, checkingPieces *[]CheckerInfo) {
+func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesBitBoard BitBoard, checkingPieces *[]CheckerInfo) {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
 	currentState := board.GetTopState()
 
@@ -506,7 +510,7 @@ func (board *Board) generateMoves(genType int) (moveList *[]Move) {
 	}
 
 	moveList = new([]Move)
-	pinnedPieces, pinnedPiecesBitBoard, checkingPieces := observeCheck(board)
+	pinnedPieces, pinnedPiecesBitBoard, checkingPieces := generateCheck(board)
 	inCheck := len(*checkingPieces) > 0
 
 	switch len(*checkingPieces) {
@@ -563,4 +567,91 @@ func moveListHelper(bitboard BitBoard, moveDir Direction, flag Flag, moveList *[
 	for to := PopLSB(&bitboard); to != INVALID_POSITION; to = PopLSB(&bitboard) {
 		*moveList = append(*moveList, NewMove(to-Position(moveDir), to, flag))
 	}
+}
+
+// Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
+func (board *Board) inCheck() bool {
+	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
+	currentState := board.GetTopState()
+
+	var enemyPieces, friendlyPieces *Pieces
+	var from Position
+	var friendlyKing BitBoard
+	// Get the pieces that will generate moves
+	if currentState.IsWhiteTurn {
+		friendlyPieces = &board.W
+		enemyPieces = &board.B
+	} else {
+		friendlyPieces = &board.B
+		enemyPieces = &board.W
+	}
+
+	{
+		if friendlyKing == 0 {
+			return true
+		}
+		friendlyKing = friendlyPieces.King
+		temp := friendlyKing
+		from = PopLSB(&temp)
+	}
+
+	// Idea is to treat king as every possible non-king enemy piece,
+	// then seeing if a reversal of the capture is possible -> "captured" piece has the king in check
+
+	// Pawn
+	if enemyPieces.Pawn != 0 {
+		var pawnPushDirection Direction
+		if currentState.IsWhiteTurn {
+			pawnPushDirection = N
+		} else {
+			pawnPushDirection = S
+		}
+		// Check for possible pawn captures
+		// inverting by side columns to prevent going off the board
+		validCaptures := (Shift(friendlyKing, pawnPushDirection+E) & enemyPieces.Pawn &^ Col1Full) |
+			(Shift(friendlyKing, pawnPushDirection+W) & enemyPieces.Pawn &^ Col8Full)
+		if validCaptures > 0 {
+			return true
+		}
+	}
+
+	// Knight
+	if enemyPieces.Knight != 0 {
+		validCaptures := ((Shift(friendlyKing, N+N+E) & ^Col1Full) | //NNE
+			(Shift(friendlyKing, N+N+W) & ^Col8Full) | //NNW
+			(Shift(friendlyKing, S+S+E) & ^Col1Full) | //SSE
+			(Shift(friendlyKing, S+S+W) & ^Col8Full) | //SSW
+			(Shift(friendlyKing, E+E+S) & ^(Col1Full | Shift(Col1Full, E))) | //EES
+			(Shift(friendlyKing, E+E+N) & ^(Col1Full | Shift(Col1Full, E))) | //EEN
+			(Shift(friendlyKing, W+W+S) & ^(Col8Full | Shift(Col8Full, W))) | //WWS
+			(Shift(friendlyKing, W+W+N) & ^(Col8Full | Shift(Col8Full, W)))) & //WWN
+			enemyPieces.Knight // All possible knight positions
+		if validCaptures > 0 {
+			return true
+		}
+	}
+
+	totalOccupancyBitBoard := enemyPieces.OccupancyBitBoard() | friendlyPieces.OccupancyBitBoard()
+
+	// Rook/Queen
+	if enemyPieces.Rook != 0 || enemyPieces.Queen != 0 {
+		possibleCheckers := GetRookMoves(from, RookMask(from)&totalOccupancyBitBoard)
+		possibleCheckers &= enemyPieces.Queen | enemyPieces.Rook
+
+		if possibleCheckers > 0 {
+			return true
+		}
+	}
+
+	// Bishop/Queen
+	if enemyPieces.Bishop != 0 || enemyPieces.Queen != 0 {
+		possibleCheckers := GetBishopMoves(from, BishopMask(from)&totalOccupancyBitBoard)
+		possibleCheckers &= enemyPieces.Queen | enemyPieces.Bishop
+
+		if possibleCheckers > 0 {
+			return true
+		}
+	}
+
+	return false
 }

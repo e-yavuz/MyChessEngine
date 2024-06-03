@@ -18,10 +18,12 @@ import (
 */
 
 const StartingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+const boardSize = 64
 
 type Board struct {
-	W Pieces // White Pieces
-	B Pieces // Black Pieces
+	W           Pieces // White Pieces
+	B           Pieces // Black Pieces
+	zobristHash uint64
 
 	stateInfoArr []*StateInfo
 
@@ -156,6 +158,8 @@ func InitFENBoard(FEN string) *Board {
 	retval.GetTopState().HalfMoveClock, _ = strconv.Atoi(drawCount)
 	retval.GetTopState().TurnCounter, _ = strconv.Atoi(turnCount)
 
+	retval.computeZobristHash()
+
 	return retval
 }
 
@@ -214,11 +218,6 @@ func (board *Board) placeFENonBoard(r rune, position Position) {
 	}
 	PlaceOnBitBoard(thisPiece.thisBitBoard, position)
 	board.PieceInfoArr[position] = thisPiece
-}
-
-// TODOlow InitPGNBoard
-func InitPGNBoard(PGN string) *Board {
-	return &Board{}
 }
 
 // Displays 8x8 board in cmdline
@@ -290,3 +289,74 @@ func (board *Board) DisplayBoard() (retval string) {
 
 	return retval
 }
+
+// ComputeZobristHash computes the Zobrist hash of the given board position
+func (board *Board) computeZobristHash() {
+	var hash uint64
+
+	for i, piece := range board.PieceInfoArr {
+		if piece != nil {
+			if piece.isWhite {
+				hash ^= zobristPieceArr[piece.pieceTYPE][WHITE][i]
+			} else {
+				hash ^= zobristPieceArr[piece.pieceTYPE][BLACK][i]
+			}
+		}
+	}
+
+	if board.GetTopState().CastleWKing {
+		hash ^= zobristCastleArr[0]
+	}
+	if board.GetTopState().CastleWQueen {
+		hash ^= zobristCastleArr[1]
+	}
+	if board.GetTopState().CastleBKing {
+		hash ^= zobristCastleArr[2]
+	}
+	if board.GetTopState().CastleBQueen {
+		hash ^= zobristCastleArr[3]
+	}
+
+	if board.GetTopState().EnPassantPosition != INVALID_POSITION {
+		hash ^= zobristEnPassantArr[board.GetTopState().EnPassantPosition%8]
+	}
+
+	if board.GetTopState().IsWhiteTurn {
+		hash ^= zobristSideToMove
+	}
+
+	board.zobristHash = hash
+}
+
+/*
+The fact that xor-operation is own inverse and can be undone by using the same xor-operation again,
+is often used by chess engines. It allows a fast incremental update of the hash key during make or unmake moves. E.g.,
+for a White Knight that jumps from b1 to c3 capturing a Black Bishop, these operations are performed:
+
+[Original Hash of position] xor [Hash for White Knight on b1] ... ( removing the knight from b1 )
+... xor [Hash for Black Bishop on c3] ( removing the captured bishop from c3 )
+... xor [Hash for White Knight on c3] ( placing the knight on the new square )
+... xor [Hash for Black to move] ( change sides)
+*/
+// func (board *Board) updateZobristHash(move Move) {
+// 	from := GetStartingPosition(move)
+// 	to := GetTargetPosition(move)
+// 	flag := GetFlag(move)
+// 	var color int
+// 	if board.PieceInfoArr[from].isWhite {
+// 		color = WHITE
+// 	} else {
+// 		color = BLACK
+// 	}
+
+// 	switch flag {
+// 	case QUIET:
+// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
+// 	case doublePawnPushFlag:
+// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
+// 	case captureFlag:
+// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
+// 	}
+
+// 	return hash
+// }

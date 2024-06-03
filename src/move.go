@@ -205,6 +205,22 @@ func GetFlag(move Move) Flag {
 	return move >> 12
 }
 
+// Trys to make a move by generating possible moves at ply 1, then checking if the move in UCI format
+// is in list by seeing if the possible moves -> UCI == moveUCI (i.e. e2e4 is in the list)
+// returns true if move is in list and makes the move
+func (board *Board) TryMoveUCI(move string) bool {
+	possibleMoves := append(*board.generateMoves(CAPTURE), *board.generateMoves(QUIET)...)
+
+	for _, possibleMove := range possibleMoves {
+		if MoveToString(possibleMove) == move {
+			board.MakeMove(possibleMove)
+			return true
+		}
+	}
+	return false
+
+}
+
 // Invariant: Assumes move is legal
 func (board *Board) MakeMove(move Move) {
 	if move == NULL_MOVE {
