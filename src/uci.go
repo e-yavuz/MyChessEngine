@@ -64,7 +64,11 @@ func UCI() {
 		} else if text == "aigame" {
 			go func() {
 				for {
-					AIBoard.MakeMove(GoCommand("go"))
+					bestMove := GoCommand("go")
+					if bestMove == NULL_MOVE {
+						break
+					}
+					AIBoard.MakeMove(bestMove)
 					fmt.Println(AIBoard.DisplayBoard())
 				}
 			}()
@@ -99,6 +103,7 @@ func UCICommand() {
 func IsReadyCommand() {
 	InitMagicBitBoardTable("magic_rook", "magic_bishop")
 	InitZobristTable()
+	initPeSTO()
 	fmt.Println("readyok")
 }
 

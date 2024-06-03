@@ -135,10 +135,6 @@ var egReferenceTable = [6]*[64]int{&egPawnTable, &egKnightTable, &egBishopTable,
 var mgTable = [12][64]int{}
 var egTable = [12][64]int{}
 
-func init() {
-	initPeSTO()
-}
-
 func initPeSTO() {
 	for p := PAWN; p <= KING; p++ {
 		for sq := 0; sq < 64; sq++ {
@@ -172,8 +168,8 @@ func PeSTOTableEval(board *Board) (retval int) {
 				mg[WHITE] += mgTable[piece.pieceTYPE][pos]
 				eg[WHITE] += egTable[piece.pieceTYPE][pos]
 			} else {
-				mg[BLACK] += mgTable[piece.pieceTYPE][pos]
-				eg[BLACK] += egTable[piece.pieceTYPE][pos]
+				mg[BLACK] += mgTable[piece.pieceTYPE+6][pos]
+				eg[BLACK] += egTable[piece.pieceTYPE+6][pos]
 			}
 			gamePhase += gamephaseInc[piece.pieceTYPE]
 		}
@@ -185,5 +181,4 @@ func PeSTOTableEval(board *Board) (retval int) {
 	mgPhase := min(24, gamePhase) /* in case of early promotion */
 	egPhase := 24 - mgPhase
 	return (mgScore*mgPhase + egScore*egPhase) / 24
-
 }
