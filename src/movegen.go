@@ -280,12 +280,12 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 	// Get the pieces that will generate moves
 	if currentState.IsWhiteTurn {
 		pieces = board.W
-		castleKing = currentState.CastleWKing
-		castleQueen = currentState.CastleWQueen
+		castleKing = currentState.getCastleWKing()
+		castleQueen = currentState.getCastleWQueen()
 	} else {
 		pieces = board.B
-		castleKing = currentState.CastleBKing
-		castleQueen = currentState.CastleBQueen
+		castleKing = currentState.getCastleBKing()
+		castleQueen = currentState.getCastleBQueen()
 	}
 	{
 		temp := pieces.King

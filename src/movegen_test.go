@@ -84,6 +84,7 @@ func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[
 
 func Test_StartPosition(t *testing.T) {
 	InitMagicBitBoardTable("../magic_rook", "../magic_bishop")
+	InitZobristTable()
 	test := InitStartBoard()
 	var perftOut uint64
 	var rootNodes map[string]uint64
@@ -123,7 +124,7 @@ func Test_StartPosition(t *testing.T) {
 
 func Test_Position5(t *testing.T) {
 	InitMagicBitBoardTable("../magic_rook", "../magic_bishop")
-	InitMagicBitBoardTable("../magic_rook", "../magic_bishop")
+	InitZobristTable()
 	test := InitFENBoard("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
 	var perftOut, expected uint64
 	var rootNodes map[string]uint64

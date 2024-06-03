@@ -72,11 +72,6 @@ func UCI() {
 			fmt.Println("Unknown command: " + text)
 		}
 	}
-
-	// Debugging
-	// IsReadyCommand()
-	// PositionCommand("position fen rn2kb1q/8/8/2p2PB1/2Rp4/3B4/8/4K3 w - - 0 1")
-	// AIBoard.MakeMove(GoCommand("go"))
 }
 
 // SetOptions sets either the hash size or the time for the engine to think
@@ -103,6 +98,7 @@ func UCICommand() {
 // IsReadyCommand is the response to the isready command
 func IsReadyCommand() {
 	InitMagicBitBoardTable("magic_rook", "magic_bishop")
+	InitZobristTable()
 	fmt.Println("readyok")
 }
 
@@ -144,12 +140,12 @@ func GoCommand(text string) Move {
 		close(cancelChannel)
 	}()
 
-	depth := 1
+	var depth byte = 1
 	bestMove := NULL_MOVE
-	bestScore := -INT_MIN
+	bestScore := -MIN_VALUE
 
 	for {
-		foundMove, foundScore := AIBoard.Search(depth, 0, INT_MIN, INT_MAX, bestMove, cancelChannel)
+		foundMove, foundScore := AIBoard.Search(depth, 0, MIN_VALUE, MAX_VALUE, bestMove, cancelChannel)
 		if foundMove != NULL_MOVE {
 			bestMove = foundMove
 			bestScore = foundScore

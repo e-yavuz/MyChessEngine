@@ -86,10 +86,10 @@ func (si *StateInfo) equalNoCapture(other *StateInfo) bool {
 
 	valueCompare = si.EnPassantPosition == other.EnPassantPosition &&
 		si.IsWhiteTurn == other.IsWhiteTurn &&
-		si.CastleWKing == other.CastleWKing &&
-		si.CastleBKing == other.CastleBKing &&
-		si.CastleWQueen == other.CastleWQueen &&
-		si.CastleBQueen == other.CastleBQueen &&
+		si.getCastleWKing() == other.getCastleWKing() &&
+		si.getCastleBKing() == other.getCastleBKing() &&
+		si.getCastleWQueen() == other.getCastleWQueen() &&
+		si.getCastleBQueen() == other.getCastleBQueen() &&
 		si.HalfMoveClock == other.HalfMoveClock &&
 		si.TurnCounter == other.TurnCounter
 
@@ -97,6 +97,7 @@ func (si *StateInfo) equalNoCapture(other *StateInfo) bool {
 }
 
 func Test_Basic(t *testing.T) {
+	InitZobristTable()
 	var truth *Board
 	var test *Board
 	var from, to Position
@@ -124,6 +125,7 @@ func Test_Basic(t *testing.T) {
 }
 
 func Test_3Moves(t *testing.T) {
+	InitZobristTable()
 	var truth *Board
 	var test *Board
 	var from, to Position
@@ -192,6 +194,7 @@ func Test_3Moves(t *testing.T) {
 }
 
 func Test_EnPassant(t *testing.T) {
+	InitZobristTable()
 	var truth *Board
 	var test *Board
 	var from, to Position
@@ -213,6 +216,7 @@ func Test_EnPassant(t *testing.T) {
 	}
 }
 func Test_GetIntermediaryRay(t *testing.T) {
+	InitZobristTable()
 	from := E4
 	to := H7
 	expected := BitBoard(70506183131136)
@@ -263,6 +267,7 @@ func Test_GetIntermediaryRay(t *testing.T) {
 }
 
 func Test_Castling(t *testing.T) {
+	InitZobristTable()
 	var truth *Board
 	var test *Board
 	var from, to Position

@@ -238,10 +238,8 @@ func (board *Board) MakeMove(move Move) {
 		IsWhiteTurn:       !currentState.IsWhiteTurn,
 		HalfMoveClock:     currentState.HalfMoveClock + 1,
 		TurnCounter:       currentState.TurnCounter,
-		CastleWKing:       currentState.CastleWKing,
-		CastleBKing:       currentState.CastleBKing,
-		CastleWQueen:      currentState.CastleWQueen,
-		CastleBQueen:      currentState.CastleBQueen,
+		ZobristKey:        currentState.ZobristKey,
+		CastleState:       currentState.CastleState,
 		EnPassantPosition: INVALID_POSITION,
 		PrecedentMove:     move,
 	}
@@ -264,22 +262,22 @@ func (board *Board) MakeMove(move Move) {
 		st.EnPassantPosition = (from + to) / 2
 	case kingCastleFlag:
 		if piece.isWhite {
-			st.CastleWKing = false
-			st.CastleWQueen = false
+			st.setCastleWKing(false)
+			st.setCastleWQueen(false)
 			board.swapPiecePositions(&board.W.Rook, to+1, to-1)
 		} else {
-			st.CastleBKing = false
-			st.CastleBQueen = false
+			st.setCastleBKing(false)
+			st.setCastleBQueen(false)
 			board.swapPiecePositions(&board.B.Rook, to+1, to-1)
 		}
 	case queenCastleFlag:
 		if piece.isWhite {
-			st.CastleWKing = false
-			st.CastleWQueen = false
+			st.setCastleWKing(false)
+			st.setCastleWQueen(false)
 			board.swapPiecePositions(&board.W.Rook, to-2, to+1)
 		} else {
-			st.CastleBKing = false
-			st.CastleBQueen = false
+			st.setCastleBKing(false)
+			st.setCastleBQueen(false)
 			board.swapPiecePositions(&board.B.Rook, to-2, to+1)
 		}
 	}
@@ -301,14 +299,14 @@ func (board *Board) MakeMove(move Move) {
 			st.Capture = board.PieceInfoArr[to]
 		}
 		// Rook Castle Partner captured -> Cannot Castle that side
-		if currentState.CastleWKing && to == 7 {
-			st.CastleWKing = false
-		} else if currentState.CastleWQueen && to == 0 {
-			st.CastleWQueen = false
-		} else if currentState.CastleBKing && to == 63 {
-			st.CastleBKing = false
-		} else if currentState.CastleBQueen && to == 56 {
-			st.CastleBQueen = false
+		if currentState.getCastleWKing() && to == 7 {
+			st.setCastleWKing(false)
+		} else if currentState.getCastleWQueen() && to == 0 {
+			st.setCastleWQueen(false)
+		} else if currentState.getCastleBKing() && to == 63 {
+			st.setCastleBKing(false)
+		} else if currentState.getCastleBQueen() && to == 56 {
+			st.setCastleBQueen(false)
 		}
 		// All captures reset half move clock
 		st.HalfMoveClock = 0
@@ -349,26 +347,27 @@ func (board *Board) MakeMove(move Move) {
 	PlaceOnBitBoard(piece.thisBitBoard, to)
 	// Rooks moving -> Castle side negated
 	// Hard coded because faster than map lookup?
-	if st.CastleWKing && piece.pieceTYPE == ROOK && from == 7 {
-		st.CastleWKing = false
-	} else if st.CastleWQueen && piece.pieceTYPE == ROOK && from == 0 {
-		st.CastleWQueen = false
-	} else if st.CastleBKing && piece.pieceTYPE == ROOK && from == 63 {
-		st.CastleBKing = false
-	} else if st.CastleBQueen && piece.pieceTYPE == ROOK && from == 56 {
-		st.CastleBQueen = false
+	if st.getCastleWKing() && piece.pieceTYPE == ROOK && from == 7 {
+		st.setCastleWKing(false)
+	} else if st.getCastleWQueen() && piece.pieceTYPE == ROOK && from == 0 {
+		st.setCastleWQueen(false)
+	} else if st.getCastleBKing() && piece.pieceTYPE == ROOK && from == 63 {
+		st.setCastleBKing(false)
+	} else if st.getCastleBQueen() && piece.pieceTYPE == ROOK && from == 56 {
+		st.setCastleBQueen(false)
 	}
 	// King moving -> Both castle sides negated
-	if (st.CastleWKing || st.CastleWQueen) && piece.thisBitBoard == &board.W.King {
-		st.CastleWKing = false
-		st.CastleWQueen = false
+	if (st.getCastleWKing() || st.getCastleWQueen()) && piece.thisBitBoard == &board.W.King {
+		st.setCastleWKing(false)
+		st.setCastleWQueen(false)
 	}
-	if (st.CastleBKing || st.CastleBQueen) && piece.thisBitBoard == &board.B.King {
-		st.CastleBKing = false
-		st.CastleBQueen = false
+	if (st.getCastleBKing() || st.getCastleBQueen()) && piece.thisBitBoard == &board.B.King {
+		st.setCastleBKing(false)
+		st.setCastleBQueen(false)
 	}
 
 	board.PushNewState(st)
+	board.updateZobristHash()
 }
 
 func (board *Board) UnMakeMove() {

@@ -21,9 +21,8 @@ const StartingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 const boardSize = 64
 
 type Board struct {
-	W           Pieces // White Pieces
-	B           Pieces // Black Pieces
-	zobristHash uint64
+	W Pieces // White Pieces
+	B Pieces // Black Pieces
 
 	stateInfoArr []*StateInfo
 
@@ -135,13 +134,13 @@ func InitFENBoard(FEN string) *Board {
 	for _, r := range castlingRights {
 		switch r {
 		case 'K':
-			retval.GetTopState().CastleWKing = true
+			retval.GetTopState().setCastleWKing(true)
 		case 'Q':
-			retval.GetTopState().CastleWQueen = true
+			retval.GetTopState().setCastleWQueen(true)
 		case 'k':
-			retval.GetTopState().CastleBKing = true
+			retval.GetTopState().setCastleBKing(true)
 		case 'q':
-			retval.GetTopState().CastleBQueen = true
+			retval.GetTopState().setCastleBQueen(true)
 		}
 
 	}
@@ -293,6 +292,7 @@ func (board *Board) DisplayBoard() (retval string) {
 // ComputeZobristHash computes the Zobrist hash of the given board position
 func (board *Board) computeZobristHash() {
 	var hash uint64
+	currState := board.GetTopState()
 
 	for i, piece := range board.PieceInfoArr {
 		if piece != nil {
@@ -304,28 +304,17 @@ func (board *Board) computeZobristHash() {
 		}
 	}
 
-	if board.GetTopState().CastleWKing {
-		hash ^= zobristCastleArr[0]
-	}
-	if board.GetTopState().CastleWQueen {
-		hash ^= zobristCastleArr[1]
-	}
-	if board.GetTopState().CastleBKing {
-		hash ^= zobristCastleArr[2]
-	}
-	if board.GetTopState().CastleBQueen {
-		hash ^= zobristCastleArr[3]
+	hash ^= zobristCastleArr[currState.CastleState]
+
+	if currState.EnPassantPosition != INVALID_POSITION {
+		hash ^= zobristEnPassantArr[currState.EnPassantPosition%8]
 	}
 
-	if board.GetTopState().EnPassantPosition != INVALID_POSITION {
-		hash ^= zobristEnPassantArr[board.GetTopState().EnPassantPosition%8]
+	if currState.IsWhiteTurn {
+		hash ^= zobristWhiteSideToMove
 	}
 
-	if board.GetTopState().IsWhiteTurn {
-		hash ^= zobristSideToMove
-	}
-
-	board.zobristHash = hash
+	currState.ZobristKey = hash
 }
 
 /*
@@ -338,25 +327,64 @@ for a White Knight that jumps from b1 to c3 capturing a Black Bishop, these oper
 ... xor [Hash for White Knight on c3] ( placing the knight on the new square )
 ... xor [Hash for Black to move] ( change sides)
 */
-// func (board *Board) updateZobristHash(move Move) {
-// 	from := GetStartingPosition(move)
-// 	to := GetTargetPosition(move)
-// 	flag := GetFlag(move)
-// 	var color int
-// 	if board.PieceInfoArr[from].isWhite {
-// 		color = WHITE
-// 	} else {
-// 		color = BLACK
-// 	}
+func (board *Board) updateZobristHash() {
+	currState := board.GetTopState()
+	prevState := board.stateInfoArr[len(board.stateInfoArr)-2]
 
-// 	switch flag {
-// 	case QUIET:
-// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
-// 	case doublePawnPushFlag:
-// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
-// 	case captureFlag:
-// 		board.zobristHash ^= zobristPieceArr[board.PieceInfoArr[from].pieceTYPE][color][from]
-// 	}
+	// Alternate the side to move every time
+	currState.ZobristKey ^= zobristWhiteSideToMove
 
-// 	return hash
-// }
+	// Update castling rights
+	if prevState.CastleState != currState.CastleState {
+		currState.ZobristKey ^= zobristCastleArr[prevState.CastleState] ^ zobristCastleArr[currState.CastleState]
+	}
+
+	// Negate previous state's en passant position
+	if prevState.EnPassantPosition != INVALID_POSITION {
+		currState.ZobristKey ^= zobristEnPassantArr[prevState.EnPassantPosition%8]
+	}
+	// XOR current state en passant position
+	if currState.EnPassantPosition != INVALID_POSITION {
+		currState.ZobristKey ^= zobristEnPassantArr[currState.EnPassantPosition%8]
+	}
+
+	from := GetStartingPosition(currState.PrecedentMove)
+	to := GetTargetPosition(currState.PrecedentMove)
+	flag := GetFlag(currState.PrecedentMove)
+	pieceType := board.PieceInfoArr[to].pieceTYPE
+	var color int
+	if prevState.IsWhiteTurn {
+		color = WHITE
+	} else {
+		color = BLACK
+	}
+
+	switch flag {
+	case quietFlag, doublePawnPushFlag: // Basic case, piece moved is same piece as piece arriving, no capture
+		currState.ZobristKey ^= zobristPieceArr[pieceType][color][from]
+	case kingCastleFlag: // Need to xor moved rook
+		currState.ZobristKey ^= zobristPieceArr[pieceType][color][from]
+		currState.ZobristKey ^= zobristPieceArr[ROOK][color][to-1] ^ zobristPieceArr[ROOK][color][to+1]
+	case queenCastleFlag: // Need to xor moved rook
+		currState.ZobristKey ^= zobristPieceArr[pieceType][color][from]
+		currState.ZobristKey ^= zobristPieceArr[ROOK][color][to+1] ^ zobristPieceArr[ROOK][color][to-2]
+	case captureFlag:
+		currState.ZobristKey ^= zobristPieceArr[pieceType][color][from]
+		currState.ZobristKey ^= zobristPieceArr[currState.Capture.pieceTYPE][color^1][to]
+	case epCaptureFlag:
+		currState.ZobristKey ^= zobristPieceArr[pieceType][color][from]
+		if color == WHITE {
+			currState.ZobristKey ^= zobristPieceArr[currState.Capture.pieceTYPE][color^1][to-8]
+		} else {
+			currState.ZobristKey ^= zobristPieceArr[currState.Capture.pieceTYPE][color^1][to+8]
+		}
+	case knightPromotionFlag, bishopPromotionFlag, rookPromotionFlag, queenPromotionFlag: // Need to xor pawn on "from" square
+		currState.ZobristKey ^= zobristPieceArr[PAWN][color][from]
+	case knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag, queenPromoCaptureFlag: // Need to xor pawn on "from" square and captured piece
+		currState.ZobristKey ^= zobristPieceArr[PAWN][color][from]
+		currState.ZobristKey ^= zobristPieceArr[currState.Capture.pieceTYPE][color^1][to]
+	}
+
+	// XOR the piece on the target square
+	board.GetTopState().ZobristKey ^= zobristPieceArr[pieceType][color][to]
+}
