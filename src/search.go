@@ -31,14 +31,12 @@ func (board *Board) Search(depth, plyFromRoot byte, alpha, beta int, bestMove Mo
 		return NULL_MOVE, eval
 	}
 
-	// Sort the capture list in descending order, hopefully improving alpha-beta pruning
-	captureMoveList := *board.generateMoves(CAPTURE)
-	sort.Slice(captureMoveList, func(i, j int) bool {
-		return captureMoveList[i] > captureMoveList[j]
-	})
-
 	// Generate the total move list, don't sort Quiet moves because a lot of them are just positioning?
-	totalMoveList := append(captureMoveList, *board.generateMoves(QUIET)...)
+	totalMoveList := append(*board.generateMoves(CAPTURE), *board.generateMoves(QUIET)...)
+
+	sort.Slice(totalMoveList, func(i, j int) bool {
+		return totalMoveList[i] > totalMoveList[j]
+	})
 
 	// if best_move != NULL_MOVE, add it to the front of the list
 	if bestMove != NULL_MOVE {

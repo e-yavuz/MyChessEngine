@@ -190,10 +190,18 @@ func FlagToString(flag Flag) string {
 		return "epCaptureFlag"
 	case knightPromotionFlag:
 		return "knightPromotionFlag"
+	case bishopPromotionFlag:
+		return "bishopPromotionFlag"
+	case rookPromotionFlag:
+		return "rookPromotionFlag"
 	case queenPromotionFlag:
 		return "queenPromotionFlag"
 	case knightPromoCaptureFlag:
 		return "knightPromoCaptureFlag"
+	case bishopPromoCaptureFlag:
+		return "bishopPromoCaptureFlag"
+	case rookPromoCaptureFlag:
+		return "rookPromoCaptureFlag"
 	case queenPromoCaptureFlag:
 		return "queenPromoCaptureFlag"
 	default:
@@ -208,16 +216,15 @@ func GetFlag(move Move) Flag {
 // Trys to make a move by generating possible moves at ply 1, then checking if the move in UCI format
 // is in list by seeing if the possible moves -> UCI == moveUCI (i.e. e2e4 is in the list)
 // returns true if move is in list and makes the move
-func (board *Board) TryMoveUCI(move string) bool {
+func (board *Board) TryMoveUCI(move string) (Move, bool) {
 	possibleMoves := append(*board.generateMoves(CAPTURE), *board.generateMoves(QUIET)...)
 
 	for _, possibleMove := range possibleMoves {
 		if MoveToString(possibleMove) == move {
-			board.MakeMove(possibleMove)
-			return true
+			return possibleMove, true
 		}
 	}
-	return false
+	return NULL_MOVE, false
 
 }
 
@@ -240,6 +247,7 @@ func (board *Board) MakeMove(move Move) {
 		TurnCounter:       currentState.TurnCounter,
 		ZobristKey:        currentState.ZobristKey,
 		CastleState:       currentState.CastleState,
+		useOpeningBook:    currentState.useOpeningBook,
 		EnPassantPosition: INVALID_POSITION,
 		PrecedentMove:     move,
 	}
@@ -324,24 +332,28 @@ func (board *Board) MakeMove(move Move) {
 			} else {
 				piece.thisBitBoard = &board.B.Knight
 			}
+			piece.pieceTYPE = KNIGHT
 		case 1: // Rook
 			if piece.isWhite {
 				piece.thisBitBoard = &board.W.Rook
 			} else {
 				piece.thisBitBoard = &board.B.Rook
 			}
+			piece.pieceTYPE = ROOK
 		case 2: // Bishop
 			if piece.isWhite {
 				piece.thisBitBoard = &board.W.Bishop
 			} else {
 				piece.thisBitBoard = &board.B.Bishop
 			}
+			piece.pieceTYPE = BISHOP
 		case 3: // Queen
 			if piece.isWhite {
 				piece.thisBitBoard = &board.W.Queen
 			} else {
 				piece.thisBitBoard = &board.B.Queen
 			}
+			piece.pieceTYPE = QUEEN
 		}
 	}
 	PlaceOnBitBoard(piece.thisBitBoard, to)

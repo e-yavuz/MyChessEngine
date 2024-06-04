@@ -156,6 +156,7 @@ func InitFENBoard(FEN string) *Board {
 	retval.GetTopState().IsWhiteTurn = turnColor == "w"
 	retval.GetTopState().HalfMoveClock, _ = strconv.Atoi(drawCount)
 	retval.GetTopState().TurnCounter, _ = strconv.Atoi(turnCount)
+	retval.GetTopState().useOpeningBook = true
 
 	retval.computeZobristHash()
 

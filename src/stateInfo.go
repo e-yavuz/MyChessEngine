@@ -8,7 +8,9 @@ type StateInfo struct {
 
 	HalfMoveClock int
 	TurnCounter   int
-	ZobristKey    uint64
+
+	ZobristKey     uint64
+	useOpeningBook bool
 
 	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
 	Capture              *PieceInfo

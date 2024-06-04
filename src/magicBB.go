@@ -13,6 +13,7 @@ var bishopCalculatedMoves [64]BitBoard // pre-calculated moves for a bishop on a
 var ROOK_MAGIC_SLICE [64][]BitBoard
 var BISHOP_MAGIC_SLICE [64][]BitBoard
 var magicRookNumbers, magicRookShifts, magicBishopNumbers, magicBishopShifts [64]uint64
+var initMagicBB bool
 
 type ValidMoveGenerationFunc func(Position, BitBoard) BitBoard
 type GetPossiblesFunc func(Position) BitBoard
@@ -322,6 +323,9 @@ func readMagicNumberFiles(filename string) ([64]uint64, [64]uint64, [64]uint64, 
 }
 
 func InitMagicBitBoardTable(rookFile string, bishopFile string) {
+	if initMagicBB {
+		return
+	}
 	rookMagicNumbers, rookMagicShift, rookMagicSizes, err := readMagicNumberFiles(rookFile)
 	if err != nil {
 		panic(err)
@@ -338,6 +342,7 @@ func InitMagicBitBoardTable(rookFile string, bishopFile string) {
 	magicRookShifts = rookMagicShift
 	magicBishopNumbers = bishopMagicNumbers
 	magicBishopShifts = bishopMagicShift
+	initMagicBB = true
 }
 
 func createMagicArray(magicNumbers, magicShifts, magicSizes *[64]uint64, globalMagicArray *[64][]BitBoard, getMoves GetPossiblesFunc, possibleMoves ValidMoveGenerationFunc) {

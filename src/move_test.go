@@ -379,3 +379,123 @@ func Test_Castling(t *testing.T) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 }
+
+func Test_Promotion(t *testing.T) {
+	InitZobristTable()
+	var truth *Board
+	var test *Board
+	var from, to Position
+	var flag uint16
+
+	// Test for queen promotion
+
+	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = A8
+	flag = queenPromotionFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("Q7/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for knight promotion
+
+	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = A8
+	flag = knightPromotionFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("N7/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for bishop promotion
+
+	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = A8
+	flag = bishopPromotionFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("B7/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for rook promotion
+
+	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = A8
+	flag = rookPromotionFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("R7/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for queen promotion capture
+
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = B8
+	flag = queenPromoCaptureFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("1Q6/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for knight promotion capture
+
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = B8
+	flag = knightPromoCaptureFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("1N6/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for bishop promotion capture
+
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = B8
+	flag = bishopPromoCaptureFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("1B6/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+
+	// Test for rook promotion capture
+
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	from = A7
+	to = B8
+	flag = rookPromoCaptureFlag
+	test.MakeMove(NewMove(from, to, flag))
+
+	truth = InitFENBoard("1R6/8/8/8/8/8/8/8 b - - 1 2")
+
+	if !test.equalNoStateCompare(truth) {
+		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
+	}
+}

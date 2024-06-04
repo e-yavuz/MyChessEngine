@@ -8,9 +8,13 @@ var zobristPieceArr [6][2][64]uint64
 var zobristCastleArr [16]uint64
 var zobristEnPassantArr [8]uint64
 var zobristWhiteSideToMove uint64
+var initZobrist bool
 
 // InitZobristTable initializes the Zobrist table with random values
 func InitZobristTable() {
+	if initZobrist {
+		return
+	}
 	var x ranctx
 	raninit(&x, zobristSeed)
 
@@ -31,4 +35,5 @@ func InitZobristTable() {
 	}
 
 	zobristWhiteSideToMove = ranval(&x)
+	initZobrist = true
 }

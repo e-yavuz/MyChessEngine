@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var AIBoard *Board
+var gameBoard *Board
 var options Options = Options{HashSize: 16, Time_ms: 1000}
 
 type Options struct {
@@ -35,20 +35,20 @@ func UCI() {
 		} else if strings.HasPrefix(text, "go") {
 			GoCommand(text)
 		} else if text == "aimove" {
-			if AIBoard == nil {
+			if gameBoard == nil {
 				fmt.Println("No board to make move on")
 			} else {
-				AIBoard.MakeMove(GoCommand("go"))
-				fmt.Println(AIBoard.DisplayBoard())
+				gameBoard.MakeMove(GoCommand("go"))
+				fmt.Println(gameBoard.DisplayBoard())
 			}
 		} else if strings.HasPrefix(text, "ucinewgame") {
 			StartAI()
 		} else if strings.HasPrefix(text, "possiblemoves") {
 			// Prints possible moves
-			if AIBoard == nil {
+			if gameBoard == nil {
 				fmt.Println("No board to make move on")
 			} else {
-				possibleMoves := append(*AIBoard.generateMoves(CAPTURE), *AIBoard.generateMoves(QUIET)...)
+				possibleMoves := append(*gameBoard.generateMoves(CAPTURE), *gameBoard.generateMoves(QUIET)...)
 				for _, move := range possibleMoves {
 					fmt.Print(MoveToString(move) + " ")
 				}
@@ -58,7 +58,6 @@ func UCI() {
 			SetOptions(text)
 		} else if strings.HasPrefix(text, "makemove") { // custom command to change the board state for playing
 			MakeMoveCommand(text)
-			fmt.Println(AIBoard.DisplayBoard())
 		} else if text == "quit" {
 			break
 		} else if text == "aigame" {
@@ -68,8 +67,8 @@ func UCI() {
 					if bestMove == NULL_MOVE {
 						break
 					}
-					AIBoard.MakeMove(bestMove)
-					fmt.Println(AIBoard.DisplayBoard())
+					gameBoard.MakeMove(bestMove)
+					fmt.Println(gameBoard.DisplayBoard())
 				}
 			}()
 		} else {
@@ -111,37 +110,48 @@ func IsReadyCommand() {
 func PositionCommand(text string) {
 	text = strings.TrimPrefix(text, "position ")
 	if strings.HasPrefix(text, "startpos") {
-		AIBoard = InitStartBoard()
+		gameBoard = InitStartBoard()
 		text = strings.TrimPrefix(text, "startpos ")
 	} else if strings.HasPrefix(text, "fen") {
 		text = strings.TrimPrefix(text, "fen ")
-		AIBoard = InitFENBoard(text)
+		gameBoard = InitFENBoard(text)
 	}
 
 	if strings.HasPrefix(text, "moves") {
 		text = strings.TrimPrefix(text, "moves ")
 		moves := strings.Split(text, " ")
 		for _, moveUCI := range moves {
-			if !AIBoard.TryMoveUCI(moveUCI) {
-				AIBoard = nil
+			_, ok := gameBoard.TryMoveUCI(moveUCI)
+			if !ok {
+				gameBoard = nil
 				fmt.Println("Invalid move: " + moveUCI)
 			}
 		}
 	}
+	fmt.Println(gameBoard.DisplayBoard())
 }
 
 func StartAI() {
-	AIBoard = nil
+	gameBoard = nil
 }
 
 // GoCommand is the response to the go command, it will do a search using iterative deepening
 func GoCommand(text string) Move {
+	if gameBoard == nil {
+		fmt.Println("Error: No board to make move on")
+		return NULL_MOVE
+	}
+
+	if bookMove := gameBoard.getOpeningBookMove(); bookMove != NULL_MOVE {
+		fmt.Printf("bestmove %s\nPulled from opening Book\n", MoveToString(bookMove))
+		return bookMove
+	}
+
 	cancelChannel := make(chan int)
 
 	// Start a timer which send a true value to the cancelChannel after the time is up
 	go func() {
 		time.Sleep(time.Duration(options.Time_ms) * time.Millisecond)
-		fmt.Println("time up")
 		close(cancelChannel)
 	}()
 
@@ -150,7 +160,7 @@ func GoCommand(text string) Move {
 	bestScore := -MIN_VALUE
 
 	for {
-		foundMove, foundScore := AIBoard.Search(depth, 0, MIN_VALUE, MAX_VALUE, bestMove, cancelChannel)
+		foundMove, foundScore := gameBoard.Search(depth, 0, MIN_VALUE, MAX_VALUE, bestMove, cancelChannel)
 		if foundMove != NULL_MOVE {
 			bestMove = foundMove
 			bestScore = foundScore
@@ -168,7 +178,11 @@ func GoCommand(text string) Move {
 // MakeMoveCommand is the response to the makemove command, it will make a move on the board
 func MakeMoveCommand(text string) {
 	text = strings.TrimPrefix(text, "makemove ")
-	if !AIBoard.TryMoveUCI(text) {
+	move, ok := gameBoard.TryMoveUCI(text)
+	if ok {
+		gameBoard.MakeMove(move)
+	} else {
 		fmt.Println("Invalid move: " + text)
 	}
+	fmt.Println(gameBoard.DisplayBoard())
 }
