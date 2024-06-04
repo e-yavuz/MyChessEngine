@@ -4,7 +4,6 @@ const (
 	CAPTURE = iota
 	EVASION
 	QUIET
-	
 )
 
 const (
@@ -237,7 +236,7 @@ func enemyPieceAttackBitBoard(board *Board) (retval BitBoard) {
 	}
 
 	// Bishop
-	if enemyPieces.Rook != 0 {
+	if enemyPieces.Bishop != 0 {
 		locations := enemyPieces.Bishop
 		for from := PopLSB(&locations); from != INVALID_POSITION; from = PopLSB(&locations) {
 			retval |= GetBishopMoves(from,
@@ -262,10 +261,10 @@ func enemyPieceAttackBitBoard(board *Board) (retval BitBoard) {
 		Shift(enemyPieces.King, S) |
 		(Shift(enemyPieces.King, E) & ^Col1Full) |
 		(Shift(enemyPieces.King, W) & ^Col8Full) |
-		(Shift(enemyPieces.King, N+N+E) & ^Col1Full) |
-		(Shift(enemyPieces.King, N+N+W) & ^Col8Full) |
-		(Shift(enemyPieces.King, S+S+E) & ^Col1Full) |
-		(Shift(enemyPieces.King, S+S+W) & ^Col8Full)
+		(Shift(enemyPieces.King, N+E) & ^Col1Full) |
+		(Shift(enemyPieces.King, N+W) & ^Col8Full) |
+		(Shift(enemyPieces.King, S+E) & ^Col1Full) |
+		(Shift(enemyPieces.King, S+W) & ^Col8Full)
 
 	return retval
 }
@@ -309,14 +308,17 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 	case QUIET:
 		kingFlag = quietFlag
 
+		// Check king can move at least 2 to the right (emptiness included implicitly)
 		if !inCheck &&
 			castleKing &&
 			(GetIntermediaryRay(from, from+3)&targetBitBoard) == GetIntermediaryRay(from, from+3) {
 			(*moveList) = append((*moveList), NewMove(from, from+2, kingCastleFlag))
 		}
+		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
-			(GetIntermediaryRay(from, from-4)&targetBitBoard) == GetIntermediaryRay(from, from-4) {
+			(GetIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == GetIntermediaryRay(from, from-4) &&
+			(GetIntermediaryRay(from, from-3)&targetBitBoard) == GetIntermediaryRay(from, from-3) {
 			(*moveList) = append((*moveList), NewMove(from, from-2, queenCastleFlag))
 		}
 	}
