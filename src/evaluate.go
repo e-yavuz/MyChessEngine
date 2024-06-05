@@ -149,10 +149,6 @@ func initPeSTO() {
 func (board *Board) Evaluate() (retval int) {
 	retval += PeSTOTableEval(board)
 
-	if !board.GetTopState().IsWhiteTurn {
-		retval *= -1
-	}
-
 	return retval
 }
 
@@ -178,6 +174,10 @@ func PeSTOTableEval(board *Board) (retval int) {
 	/* tapered eval */
 	mgScore := mg[WHITE] - mg[BLACK]
 	egScore := eg[WHITE] - eg[BLACK]
+	if !board.GetTopState().IsWhiteTurn {
+		mgScore *= -1
+		egScore *= -1
+	}
 	mgPhase := min(24, gamePhase) /* in case of early promotion */
 	egPhase := 24 - mgPhase
 	return (mgScore*mgPhase + egScore*egPhase) / 24

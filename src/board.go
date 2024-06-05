@@ -18,7 +18,6 @@ import (
 */
 
 const StartingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-const boardSize = 64
 
 type Board struct {
 	W Pieces // White Pieces
@@ -272,9 +271,9 @@ func (board *Board) DisplayBoard() (retval string) {
 	for position := PopLSB(&Wking); position != INVALID_POSITION; position = PopLSB(&Wking) {
 		boardRep[position/8][position%8] = 'K'
 	}
-	retval += "-----------------" + "\n"
+	retval += "  ---------------\n"
 	for row := 7; row >= 0; row-- {
-		retval += "|"
+		retval += string('1'+rune(row)) + "|"
 		str := ""
 		for col := 0; col < 8; col++ {
 			if boardRep[row][col] != 0 {
@@ -285,7 +284,8 @@ func (board *Board) DisplayBoard() (retval string) {
 		}
 		retval += fmt.Sprintf("%s|\n", strings.Join(strings.Split(str, ""), " "))
 	}
-	retval += "-----------------"
+	retval += "  ---------------\n"
+	retval += "  A B C D E F G H\n"
 
 	return retval
 }
