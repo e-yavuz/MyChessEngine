@@ -238,6 +238,9 @@ func (board *Board) MakeMove(move Move) {
 	to := GetTargetPosition(move)
 
 	piece := board.PieceInfoArr[from]
+	if piece == nil {
+		panic(fmt.Sprintf("%s begins on empty square", MoveToString(move)))
+	}
 	currentState := board.GetTopState()
 
 	// Copy over from currentState to a new state
@@ -442,6 +445,7 @@ func (board *Board) UnMakeMove() {
 	// If promoted, get the bitboard the piece belonged to pre-promotion
 	if GetFlag(move)&0b1000 > 0 {
 		piece.thisBitBoard = topState.PrePromotionBitBoard
+		piece.pieceTYPE = PAWN
 	}
 
 	// Place back onto original bitboard position
