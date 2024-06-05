@@ -14,6 +14,7 @@ import (
 
 var gameBoard *Board
 var options Options = Options{HashSize: 16, Time_ms: 1000}
+var uciDebug bool = false
 
 type Options struct {
 	HashSize int   // in MB, default 16
@@ -22,28 +23,38 @@ type Options struct {
 
 // UCI is the main function to start the UCI loop
 func UCI() {
+	InitMagicBitBoardTable("magic_rook", "magic_bishop")
+	InitZobristTable()
+	initPeSTO()
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
 		if text == "uci" {
-			UCICommand()
+			go UCICommand()
 		} else if text == "isready" {
 			IsReadyCommand()
-		} else if strings.HasPrefix(text, "position") {
+		} else if strings.HasPrefix(text, "position ") {
 			PositionCommand(text)
 		} else if strings.HasPrefix(text, "go") {
-			GoCommand(text)
-		} else if text == "aimove" {
+			go GoCommand(text)
+		} else if strings.HasPrefix(text, "ucinewgame") {
+			StartAI()
+		} else if text == "quit" {
+			break
+		} else if text == "debug" {
+			uciDebug = !uciDebug
+			fmt.Println("Debug mode: ", uciDebug)
+		} else if strings.HasPrefix(text, "setoption") {
+			SetOptions(text)
+		} else if text == "aimove" && uciDebug {
 			if gameBoard == nil {
 				fmt.Println("No board to make move on")
 			} else {
 				gameBoard.MakeMove(GoCommand("go"))
 				fmt.Println(gameBoard.DisplayBoard())
 			}
-		} else if strings.HasPrefix(text, "ucinewgame") {
-			StartAI()
-		} else if strings.HasPrefix(text, "possiblemoves") {
+		} else if strings.HasPrefix(text, "possiblemoves") && uciDebug {
 			// Prints possible moves
 			if gameBoard == nil {
 				fmt.Println("No board to make move on")
@@ -54,23 +65,24 @@ func UCI() {
 				}
 				fmt.Println()
 			}
-		} else if strings.HasPrefix(text, "setoption") {
-			SetOptions(text)
-		} else if strings.HasPrefix(text, "makemove") { // custom command to change the board state for playing
+		} else if strings.HasPrefix(text, "makemove") && uciDebug { // custom command to change the board state for playing
 			MakeMoveCommand(text)
-		} else if text == "quit" {
-			break
-		} else if text == "aigame" {
-			go func() {
-				for {
-					bestMove := GoCommand("go")
-					if bestMove == NULL_MOVE {
-						break
-					}
-					gameBoard.MakeMove(bestMove)
+		} else if text == "humangame" && uciDebug {
+			for {
+				text, _ := reader.ReadString('\n')
+				text = strings.TrimSpace(text)
+				if text == "quit" {
+					break
+				} else if strings.HasPrefix(text, "makemove") {
+					MakeMoveCommand(text)
+					gameBoard.MakeMove(GoCommand("go"))
 					fmt.Println(gameBoard.DisplayBoard())
 				}
-			}()
+			}
+		} else if text == "aionlygame" && uciDebug {
+			AIOnlygame()
+		} else if text == "eval" && uciDebug {
+			fmt.Println(gameBoard.Evaluate())
 		} else {
 			fmt.Println("Unknown command: " + text)
 		}
@@ -100,9 +112,6 @@ func UCICommand() {
 
 // IsReadyCommand is the response to the isready command
 func IsReadyCommand() {
-	InitMagicBitBoardTable("magic_rook", "magic_bishop")
-	InitZobristTable()
-	initPeSTO()
 	fmt.Println("readyok")
 }
 
@@ -121,10 +130,12 @@ func PositionCommand(text string) {
 		text = strings.TrimPrefix(text, "moves ")
 		moves := strings.Split(text, " ")
 		for _, moveUCI := range moves {
-			_, ok := gameBoard.TryMoveUCI(moveUCI)
+			move, ok := gameBoard.TryMoveUCI(moveUCI)
 			if !ok {
 				gameBoard = nil
 				fmt.Println("Invalid move: " + moveUCI)
+			} else {
+				gameBoard.MakeMove(move)
 			}
 		}
 	}
@@ -155,22 +166,13 @@ func GoCommand(text string) Move {
 		close(cancelChannel)
 	}()
 
-	var depth byte = 1
-	bestMove := NULL_MOVE
-	bestScore := -MIN_VALUE
+	move, eval, depth := gameBoard.StartSearch(cancelChannel)
 
-	for {
-		foundMove, foundScore := gameBoard.Search(depth, 0, MIN_VALUE, MAX_VALUE, bestMove, cancelChannel)
-		if foundMove != NULL_MOVE {
-			bestMove = foundMove
-			bestScore = foundScore
-		} else {
-			break
-		}
-		depth++
+	fmt.Printf("bestmove %s\nscore %d, searched depth %d\n", MoveToString(move), eval, depth)
+
+	if uciDebug {
+		fmt.Printf("TT occupancy: %f\n", float32(TableSize)/TableCapacity)
 	}
-
-	fmt.Printf("bestmove %s\nscore %d, searched depth %d\n", MoveToString(bestMove), bestScore, depth)
 
 	return bestMove
 }
@@ -185,4 +187,16 @@ func MakeMoveCommand(text string) {
 		fmt.Println("Invalid move: " + text)
 	}
 	fmt.Println(gameBoard.DisplayBoard())
+}
+
+func AIOnlygame() {
+	for {
+		bestMove := GoCommand("go")
+		if bestMove == NULL_MOVE {
+			fmt.Println("Game over!")
+			break
+		}
+		gameBoard.MakeMove(bestMove)
+		fmt.Println(gameBoard.DisplayBoard())
+	}
 }
