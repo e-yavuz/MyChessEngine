@@ -14,36 +14,43 @@ type tagHASHE struct { // Size: 16 bytes
 	best  Move   // 2 bytes
 }
 
-const TableSize = 65536 // 1 MB table with 16 byte size entries
+const TableCapacity = 65536 * 64 // 64 MB table with 16 byte size entries
+var TableSize = 0
 
-var hash_table [TableSize]tagHASHE
+var hash_table [TableCapacity]tagHASHE
 
-
-func ProbeHash(depth byte, alpha, beta int, key uint64) (Move, int) {
-	phashe := &hash_table[key%TableSize]
+func ProbeHash(depth byte, alpha, beta int, key uint64) int {
+	phashe := &hash_table[key%TableCapacity]
 
 	if phashe.key == key {
 		if phashe.depth >= depth {
 			if phashe.flags == hashfEXACT {
-				return phashe.best, phashe.value
+				return phashe.value
 			}
 			if phashe.flags == hashfALPHA && phashe.value <= alpha {
-				return phashe.best, alpha
+				return alpha
 			}
 			if phashe.flags == hashfBETA && phashe.value >= beta {
-				return phashe.best, beta
+				return beta
 			}
 		}
 	}
-	return NULL_MOVE, MIN_VALUE
+	return MIN_VALUE
 }
 
 func RecordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
-	phashe := &hash_table[key%TableSize]
+	phashe := &hash_table[key%TableCapacity]
+	if phashe.key == 0 {
+		TableSize++
+	}
 
 	phashe.key = key
 	phashe.best = bestMove
 	phashe.value = val
 	phashe.flags = hashf
 	phashe.depth = depth
+}
+
+func GetEntry(key uint64) tagHASHE {
+	return hash_table[key%TableCapacity]
 }
