@@ -1,0 +1,3 @@
+v3 
+    Opening book moves, magic bit board, AB pruning, 
+    TT with partial search, PSTO eval, Quiessence Search, test game compliant
