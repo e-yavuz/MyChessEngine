@@ -493,7 +493,7 @@ func generatePinned(board *Board, genType int, pinnedPieces *[]PinnedPieceInfo, 
 	}
 }
 
-func (board *Board) generateMoves(genType int) (moveList *[]Move) {
+func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
 	currentState := board.GetTopState()
 
 	var friendlyPieces, enemyPieces *Pieces
@@ -572,7 +572,7 @@ func moveListHelper(bitboard BitBoard, moveDir Direction, flag Flag, moveList *[
 }
 
 // Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
-func (board *Board) inCheck() bool {
+func (board *Board) InCheck() bool {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
 	currentState := board.GetTopState()
 

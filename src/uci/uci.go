@@ -5,6 +5,7 @@ package chessengine
 
 import (
 	"bufio"
+	engine "chessengine/src/engine"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,9 +13,9 @@ import (
 	"time"
 )
 
-var gameBoard *Board
-var options Options = Options{HashSize: 16, Time_ms: 1000}
+var options Options = Options{HashSize: 16, Time_ms: 100}
 var uciDebug bool = false
+var gameBoard *engine.Board
 
 type Options struct {
 	HashSize int   // in MB, default 16
@@ -23,66 +24,35 @@ type Options struct {
 
 // UCI is the main function to start the UCI loop
 func UCI() {
-	InitMagicBitBoardTable("magic_rook", "magic_bishop")
-	InitZobristTable()
-	initPeSTO()
+	engine.InitMagicBitBoardTable("magic_rook", "magic_bishop")
+	engine.InitZobristTable()
+	engine.InitPeSTO()
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
 		if text == "uci" {
-			go UCICommand()
+			UCICommand()
 		} else if text == "isready" {
 			IsReadyCommand()
 		} else if strings.HasPrefix(text, "position ") {
 			PositionCommand(text)
 		} else if strings.HasPrefix(text, "go") {
-			go GoCommand(text)
+			GoCommand(text)
 		} else if strings.HasPrefix(text, "ucinewgame") {
-			StartAI()
-		} else if text == "quit" {
-			break
-		} else if text == "debug" {
-			uciDebug = !uciDebug
-			fmt.Println("Debug mode: ", uciDebug)
+			gameBoard = nil
+		} else if strings.HasPrefix(text, "debug") {
+			DebugCommand(text)
 		} else if strings.HasPrefix(text, "setoption") {
 			SetOptions(text)
-		} else if text == "aimove" && uciDebug {
-			if gameBoard == nil {
-				fmt.Println("No board to make move on")
-			} else {
-				gameBoard.MakeMove(GoCommand("go"))
-				fmt.Println(gameBoard.DisplayBoard())
-			}
 		} else if strings.HasPrefix(text, "possiblemoves") && uciDebug {
-			// Prints possible moves
-			if gameBoard == nil {
-				fmt.Println("No board to make move on")
-			} else {
-				possibleMoves := append(*gameBoard.generateMoves(CAPTURE), *gameBoard.generateMoves(QUIET)...)
-				for _, move := range possibleMoves {
-					fmt.Print(MoveToString(move) + " ")
-				}
-				fmt.Println()
-			}
-		} else if strings.HasPrefix(text, "makemove") && uciDebug { // custom command to change the board state for playing
-			MakeMoveCommand(text)
-		} else if text == "humangame" && uciDebug {
-			for {
-				text, _ := reader.ReadString('\n')
-				text = strings.TrimSpace(text)
-				if text == "quit" {
-					break
-				} else if strings.HasPrefix(text, "makemove") {
-					MakeMoveCommand(text)
-					gameBoard.MakeMove(GoCommand("go"))
-					fmt.Println(gameBoard.DisplayBoard())
-				}
-			}
-		} else if text == "aionlygame" && uciDebug {
-			AIOnlygame()
+			PossibleMoves()
+		} else if text == "testgame" && uciDebug {
+			TestGame()
 		} else if text == "eval" && uciDebug {
 			fmt.Println(gameBoard.Evaluate())
+		} else if text == "quit" {
+			break
 		} else {
 			fmt.Println("Unknown command: " + text)
 		}
@@ -105,7 +75,7 @@ func SetOptions(text string) {
 
 // UCICommand is the response to the UCI command
 func UCICommand() {
-	fmt.Println("id name ChessEngine")
+	fmt.Println("id name ChessEngineEmre")
 	fmt.Println("id author Emre")
 	fmt.Println("uciok")
 }
@@ -119,16 +89,18 @@ func IsReadyCommand() {
 func PositionCommand(text string) {
 	text = strings.TrimPrefix(text, "position ")
 	if strings.HasPrefix(text, "startpos") {
-		gameBoard = InitStartBoard()
+		gameBoard = engine.InitStartBoard()
 		text = strings.TrimPrefix(text, "startpos ")
 	} else if strings.HasPrefix(text, "fen") {
 		text = strings.TrimPrefix(text, "fen ")
-		gameBoard = InitFENBoard(text)
+		gameBoard = engine.InitFENBoard(text)
 	}
 
-	if strings.HasPrefix(text, "moves") {
-		text = strings.TrimPrefix(text, "moves ")
-		moves := strings.Split(text, " ")
+	// Finds index of substring "moves" if it exists in text and
+	// gets an Arr of all moves after "moves"
+	if strings.Contains(text, "moves") {
+		index := strings.Index(text, "moves")
+		moves := strings.Split(text[index+len("moves")+1:], " ")
 		for _, moveUCI := range moves {
 			move, ok := gameBoard.TryMoveUCI(moveUCI)
 			if !ok {
@@ -139,22 +111,20 @@ func PositionCommand(text string) {
 			}
 		}
 	}
-	fmt.Println(gameBoard.DisplayBoard())
-}
-
-func StartAI() {
-	gameBoard = nil
 }
 
 // GoCommand is the response to the go command, it will do a search using iterative deepening
-func GoCommand(text string) Move {
+func GoCommand(text string) engine.Move {
 	if gameBoard == nil {
 		fmt.Println("Error: No board to make move on")
-		return NULL_MOVE
+		return engine.NULL_MOVE
 	}
 
-	if bookMove := gameBoard.getOpeningBookMove(); bookMove != NULL_MOVE {
-		fmt.Printf("bestmove %s\nPulled from opening Book\n", MoveToString(bookMove))
+	if bookMove := gameBoard.GetOpeningBookMove(); bookMove != engine.NULL_MOVE {
+		fmt.Printf("bestmove %s\n", engine.MoveToString(bookMove))
+		if uciDebug {
+			fmt.Println("Opening book move")
+		}
 		return bookMove
 	}
 
@@ -166,37 +136,57 @@ func GoCommand(text string) Move {
 		close(cancelChannel)
 	}()
 
-	move, eval, depth := gameBoard.StartSearch(cancelChannel)
+	move, _, _ := gameBoard.StartSearch(cancelChannel)
 
-	fmt.Printf("bestmove %s\nscore %d, searched depth %d\n", MoveToString(move), eval, depth)
+	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
 
 	if uciDebug {
-		fmt.Printf("TT occupancy: %f\n", float32(TableSize)/TableCapacity)
+		fmt.Printf("TT occupancy: %f\n", float32(engine.TableSize)/engine.TableCapacity)
 	}
 
-	return bestMove
+	return move
 }
 
-// MakeMoveCommand is the response to the makemove command, it will make a move on the board
-func MakeMoveCommand(text string) {
-	text = strings.TrimPrefix(text, "makemove ")
-	move, ok := gameBoard.TryMoveUCI(text)
-	if ok {
-		gameBoard.MakeMove(move)
+// Sets the debug mode to true or false
+func DebugCommand(text string) {
+	text = strings.TrimPrefix(text, "debug ")
+	if text == "on" {
+		uciDebug = true
+	} else if text == "off" {
+		uciDebug = false
+	}
+}
+
+// If debug on, this returns all possible moves from a position
+func PossibleMoves() {
+	if gameBoard == nil {
+		fmt.Println("No board to make move on")
 	} else {
-		fmt.Println("Invalid move: " + text)
+		possibleMoves := append(*gameBoard.GenerateMoves(engine.CAPTURE), *gameBoard.GenerateMoves(engine.QUIET)...)
+		for _, move := range possibleMoves {
+			fmt.Print(engine.MoveToString(move) + " ")
+		}
+		fmt.Println()
 	}
-	fmt.Println(gameBoard.DisplayBoard())
 }
 
-func AIOnlygame() {
+// Starts a CLI game against the bot
+func TestGame() {
+	reader := bufio.NewReader(os.Stdin)
 	for {
-		bestMove := GoCommand("go")
-		if bestMove == NULL_MOVE {
-			fmt.Println("Game over!")
+		text, _ := reader.ReadString('\n')
+		text = strings.TrimSpace(text)
+		if text == "quit" {
 			break
+		} else if strings.HasPrefix(text, "move") {
+			moveUCI := strings.TrimPrefix(text, "move ")
+			move, ok := gameBoard.TryMoveUCI(moveUCI)
+			if !ok {
+				continue
+			}
+			gameBoard.MakeMove(move)
+			gameBoard.MakeMove(GoCommand("go"))
+			fmt.Println(gameBoard.DisplayBoard())
 		}
-		gameBoard.MakeMove(bestMove)
-		fmt.Println(gameBoard.DisplayBoard())
 	}
 }

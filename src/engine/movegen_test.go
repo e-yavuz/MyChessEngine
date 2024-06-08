@@ -11,7 +11,7 @@ import (
 var testBoard Board
 
 func allMoves(board *Board) []Move {
-	return append(*board.generateMoves(CAPTURE), *board.generateMoves(QUIET)...)
+	return append(*board.GenerateMoves(CAPTURE), *board.GenerateMoves(QUIET)...)
 }
 
 func convertStringToMap(input string) map[string]uint64 {

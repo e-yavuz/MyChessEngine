@@ -1,10 +1,6 @@
 package main
 
-// import uci.go
-import (
-	chessengine "chessengine/src"
-)
-
 func main() {
-	chessengine.UCI()
+	// chessengine.UCI()
+	// fmt.Println(chessengine.StartGame("e1", "e2", []string{"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}))
 }

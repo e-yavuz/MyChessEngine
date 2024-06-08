@@ -25,7 +25,8 @@ type Board struct {
 
 	stateInfoArr []*StateInfo
 
-	PieceInfoArr [64]*PieceInfo
+	PieceInfoArr              [64]*PieceInfo
+	RepetitionPositionHistory map[uint64]int
 }
 
 func (board *Board) DeepCopy() (retval Board) {
@@ -114,7 +115,8 @@ func InitFENBoard(FEN string) *Board {
 	turnCount := FEN_Arr[5]
 
 	retval := &Board{
-		stateInfoArr: []*StateInfo{{}},
+		stateInfoArr:              []*StateInfo{{}},
+		RepetitionPositionHistory: make(map[uint64]int),
 	}
 
 	var position Position = 56

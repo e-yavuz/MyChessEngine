@@ -97,7 +97,7 @@ func CreateOpeningBook(inputFilePath, outputFilePath string, maxDepth int) {
 	writeMapToFile()
 }
 
-func (board *Board) getOpeningBookMove() Move {
+func (board *Board) GetOpeningBookMove() Move {
 	if !board.GetTopState().useOpeningBook {
 		return NULL_MOVE
 	}
@@ -127,6 +127,7 @@ func (board *Board) getOpeningBookMove() Move {
 			return Move(move)
 		}
 	}
+	// Could not find opening book move, switch to search
 	board.GetTopState().useOpeningBook = false
 	return NULL_MOVE
 }

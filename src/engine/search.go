@@ -61,7 +61,7 @@ func (board *Board) Search(depth, plyFromRoot byte, alpha, beta int, cancelChann
 	totalMoveList := *getAllMoves(board, plyFromRoot)
 
 	if len(totalMoveList) == 0 {
-		if board.inCheck() {
+		if board.InCheck() {
 			return MATE_SCORE + int(plyFromRoot) // Checkmate
 		} else {
 			return 0 // Stalemate
@@ -75,6 +75,7 @@ func (board *Board) Search(depth, plyFromRoot byte, alpha, beta int, cancelChann
 		board.MakeMove(move)
 
 		score := -board.Search(depth-1, plyFromRoot+1, -beta, -alpha, cancelChannel)
+		//TODOhigh implement search extension
 
 		board.UnMakeMove()
 
@@ -119,7 +120,7 @@ func (board *Board) QuiescenceSearch(alpha, beta int, cancelChannel chan int) in
 		alpha = eval
 	}
 
-	captureMoveList := *board.generateMoves(CAPTURE)
+	captureMoveList := *board.GenerateMoves(CAPTURE)
 	sort.Slice(captureMoveList, func(i, j int) bool {
 		return captureMoveList[i] > captureMoveList[j]
 	})
@@ -142,8 +143,8 @@ func (board *Board) QuiescenceSearch(alpha, beta int, cancelChannel chan int) in
 
 func getAllMoves(board *Board, plyFromRoot byte) *[]Move {
 	var totalMoveList []Move
-	captureList := *board.generateMoves(CAPTURE)
-	quietList := *board.generateMoves(QUIET)
+	captureList := *board.GenerateMoves(CAPTURE)
+	quietList := *board.GenerateMoves(QUIET)
 
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
 		totalMoveList = make([]Move, 0, len(captureList)+len(quietList)+1)

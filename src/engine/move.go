@@ -217,7 +217,7 @@ func GetFlag(move Move) Flag {
 // is in list by seeing if the possible moves -> UCI == moveUCI (i.e. e2e4 is in the list)
 // returns true if move is in list and makes the move
 func (board *Board) TryMoveUCI(move string) (Move, bool) {
-	possibleMoves := append(*board.generateMoves(CAPTURE), *board.generateMoves(QUIET)...)
+	possibleMoves := append(*board.GenerateMoves(CAPTURE), *board.GenerateMoves(QUIET)...)
 
 	for _, possibleMove := range possibleMoves {
 		if MoveToString(possibleMove) == move {
@@ -383,6 +383,7 @@ func (board *Board) MakeMove(move Move) {
 
 	board.PushNewState(st)
 	board.updateZobristHash()
+	board.RepetitionPositionHistory[board.GetTopState().ZobristKey] += 1
 }
 
 func (board *Board) UnMakeMove() {
@@ -391,6 +392,8 @@ func (board *Board) UnMakeMove() {
 	if move == NULL_MOVE {
 		panic(fmt.Sprintf("No precedent move recorded for current state:\n%v", topState))
 	}
+
+	board.RepetitionPositionHistory[topState.ZobristKey] -= 1
 
 	from := GetStartingPosition(move)
 	to := GetTargetPosition(move)

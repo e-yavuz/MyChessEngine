@@ -135,7 +135,7 @@ var egReferenceTable = [6]*[64]int{&egPawnTable, &egKnightTable, &egBishopTable,
 var mgTable = [12][64]int{}
 var egTable = [12][64]int{}
 
-func initPeSTO() {
+func InitPeSTO() {
 	for p := PAWN; p <= KING; p++ {
 		for sq := 0; sq < 64; sq++ {
 			mgTable[p][sq] = mgValue[p] + (*mgReferenceTable[p])[sq]
