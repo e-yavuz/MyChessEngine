@@ -1,13 +1,47 @@
 package chessengine
 
 import (
+	"bufio"
 	engine "chessengine/src/engine"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 )
 
 var gameBoard *engine.Board
+
+func StartGameFile(engine1 string, engine2 string, fenFile string, startIndex, numGames int) (int, int, int, int) {
+	// Open the file
+	file, err := os.Open(fenFile)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return -1, -1, -1, -1
+	}
+	defer file.Close()
+
+	// Create a new Scanner for the file
+	scanner := bufio.NewScanner(file)
+
+	// Read the file
+	fenBoards := []string{}
+	i := 0
+	for scanner.Scan() && i/2 < numGames {
+		// Read each line of the file
+		line := scanner.Text()
+
+		// Add every even line to fenBoards (odd lines are evaluations)
+		if i%2 == 0 {
+			fenBoards = append(fenBoards, line)
+		}
+
+		i++
+	}
+	fmt.Printf("Read %d FEN strings\n", len(fenBoards))
+	// Print out fenBoards
+	fmt.Printf("fenBoards: %v\n", fenBoards)
+	return StartGame(engine1, engine2, fenBoards[startIndex:])
+}
 
 // Start a game for
 func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, int, int) {
@@ -89,12 +123,15 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
+					fmt.Println("Game over by:", engine.GameResultToString(result))
 				}
 				if engine.IsWhiteWin(result) {
 					engine1Wins++
+					fmt.Println("Game over by: Engine 1 Win")
 				}
 				if result == engine.Error {
 					errors++
+					fmt.Printf("Game over by: Error\nFen: %s\nMoves: %v\n", fen, moveList)
 				}
 				break
 			}
@@ -102,15 +139,17 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			// Make a turn for engine2
 			result = makeTurn(stdin2, stdout2, fen, &moveList)
 			if result != engine.InProgress {
-				fmt.Println("Game over:", result)
 				if engine.IsDraw(result) {
 					draws++
+					fmt.Println("Game over by:", engine.GameResultToString(result))
 				}
 				if engine.IsBlackWin(result) {
 					engine2Wins++
+					fmt.Println("Game over by: Engine 2 Win")
 				}
 				if result == engine.Error {
 					errors++
+					fmt.Printf("Game over by: Error\nFen: %s\nMoves: %v\n", fen, moveList)
 				}
 				break
 			}
@@ -125,12 +164,15 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
+					fmt.Println("Game over by:", engine.GameResultToString(result))
 				}
 				if engine.IsWhiteWin(result) {
 					engine2Wins++
+					fmt.Println("Game over by: Engine 2 Win")
 				}
 				if result == engine.Error {
 					errors++
+					fmt.Printf("Game over by: Error\nFen: %s\nMoves: %v\n", fen, moveList)
 				}
 				break
 			}
@@ -140,12 +182,15 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
+					fmt.Println("Game over by:", engine.GameResultToString(result))
 				}
 				if engine.IsBlackWin(result) {
 					engine1Wins++
+					fmt.Println("Game over by: Engine 1 Win")
 				}
 				if result == engine.Error {
 					errors++
+					fmt.Printf("Game over by: Error\nFen: %s\nMoves: %v\n", fen, moveList)
 				}
 				break
 			}
