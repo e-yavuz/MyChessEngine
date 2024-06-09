@@ -19,7 +19,7 @@ var TableSize = 0
 
 var hash_table [TableCapacity]tagHASHE
 
-func ProbeHash(depth byte, alpha, beta int, key uint64) int {
+func probeHash(depth byte, alpha, beta int, key uint64) int {
 	phashe := &hash_table[key%TableCapacity]
 
 	if phashe.key == key {
@@ -38,7 +38,7 @@ func ProbeHash(depth byte, alpha, beta int, key uint64) int {
 	return MIN_VALUE
 }
 
-func RecordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
+func recordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
 	phashe := &hash_table[key%TableCapacity]
 	if phashe.key == 0 {
 		TableSize++
