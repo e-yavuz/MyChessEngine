@@ -1,3 +1,17 @@
 v1
-    Opening book moves, magic bit board, AB pruning, 
-    TT with partial search, PSTO eval, Quiessence Search, test game compliant
+    Opening book moves, 
+    magic bit board, 
+    AB pruning, 
+    TT with partial search, 
+    PSTO eval, 
+    Quiessence Search, 
+    test game compliant
+
+v2
+    +Check search extension to 16
+
+v3
+    +Avoids draw by repitition + 50-move
+
+v4
+    +Extend search of pawns 1 move from promotion
