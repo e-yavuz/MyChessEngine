@@ -2,7 +2,6 @@ package chessengine
 
 import (
 	"fmt"
-	"log"
 )
 
 /*
@@ -240,7 +239,7 @@ func (board *Board) MakeMove(move Move) {
 
 	piece := board.PieceInfoArr[from]
 	if piece == nil {
-		panic(fmt.Sprintf("%s begins on empty square", MoveToString(move)))
+		panic(fmt.Sprintf("%s begins on empty square BestMove: %s", MoveToString(move), MoveToString(bestMove)))
 	}
 	currentState := board.GetTopState()
 
@@ -401,8 +400,8 @@ func (board *Board) UnMakeMove() {
 
 	piece := board.PieceInfoArr[to]
 
-	if piece == nil {
-		log.Printf("From: %d, To: %d", from, to)
+	if piece == nil || from == to {
+		panic(fmt.Sprintf("%s begins on empty square", MoveToString(move)))
 	}
 
 	// Start by removing this piece from the bitBoard it was originally, it is essentially in limbo now

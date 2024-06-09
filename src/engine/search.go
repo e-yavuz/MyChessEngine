@@ -81,7 +81,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	}
 
 	moveList := make([]Move, 0, MAX_MOVE_COUNT)
-	moveList = board.GenerateMoves(ALL, moveList)
+	moveList = getAllMoves(board, plyFromRoot, moveList)
 
 	if len(moveList) == 0 {
 		if board.InCheck() {
@@ -144,7 +144,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) in
 	}
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
-	captureMoveList = board.GenerateMoves(CAPTURE_ONLY, captureMoveList)
+	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
 	sort.Slice(captureMoveList, func(i, j int) bool {
 		return captureMoveList[i] > captureMoveList[j]
 	})
@@ -173,8 +173,7 @@ func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
 		moveList = append(moveList, bestMove)
 	}
-	moveList = board.GenerateMoves(CAPTURE, moveList)
-	moveList = board.GenerateMoves(QUIET, moveList)
+	moveList = board.GenerateMoves(ALL, moveList)
 
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
 		sort.Slice(moveList[1:], func(i, j int) bool {
@@ -186,7 +185,7 @@ func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
 		})
 	}
 
-	return moveList[:]
+	return moveList
 }
 
 /*

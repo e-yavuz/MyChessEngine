@@ -4,8 +4,6 @@ const (
 	CAPTURE = iota
 	EVASION
 	QUIET
-	CAPTURE_ONLY
-	QUIET_ONLY
 	ALL
 )
 
@@ -504,7 +502,7 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 	if genType == ALL {
 		moveList = board.GenerateMoves(CAPTURE, moveList)
 		moveList = board.GenerateMoves(QUIET, moveList)
-		return moveList[:]
+		return moveList
 	}
 	currentState := board.GetTopState()
 
@@ -570,10 +568,6 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 			QUIET,
 			inCheck,
 			&moveList)
-	}
-
-	if genType == CAPTURE_ONLY || genType == QUIET_ONLY {
-		return moveList[:]
 	}
 
 	return moveList

@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	// runTest("./bots/v1", "./bots/v4", "src/testgames/testgames_2.txt", 0, 10)
-	makeUCI()
+	runTest("./bots/v1", "./bots/v5", "src/testgames/testgames_highquality.txt", 0, 20)
+	// makeUCI()
 }
 
 func runTest(engine1, engine2, testgamesPath string, startindex, numgames int) {
