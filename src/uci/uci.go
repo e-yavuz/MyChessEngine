@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+const (
+	name = "ChessEngineEmre v5 (Stack allocation of moveLists)"
+)
+
 var options Options = Options{HashSize: 16, Time_ms: 100}
 var uciDebug bool = false
 var gameBoard *engine.Board
@@ -75,7 +79,7 @@ func SetOptions(text string) {
 
 // UCICommand is the response to the UCI command
 func UCICommand() {
-	fmt.Println("id name ChessEngineEmre")
+	fmt.Println("id name", name)
 	fmt.Println("id author Emre")
 	fmt.Println("uciok")
 }
@@ -162,8 +166,10 @@ func PossibleMoves() {
 	if gameBoard == nil {
 		fmt.Println("No board to make move on")
 	} else {
-		possibleMoves := append(*gameBoard.GenerateMoves(engine.CAPTURE), *gameBoard.GenerateMoves(engine.QUIET)...)
-		for _, move := range possibleMoves {
+		moveList := make([]engine.Move, 0, engine.MAX_MOVE_COUNT)
+		moveList = gameBoard.GenerateMoves(engine.ALL, moveList)
+		moveList = moveList[:]
+		for _, move := range moveList {
 			fmt.Print(engine.MoveToString(move) + " ")
 		}
 		fmt.Println()

@@ -4,6 +4,9 @@ const (
 	CAPTURE = iota
 	EVASION
 	QUIET
+	CAPTURE_ONLY
+	QUIET_ONLY
+	ALL
 )
 
 const (
@@ -14,6 +17,10 @@ const (
 	QUEEN
 	KING
 )
+
+const MAX_MOVE_COUNT = 218
+const MAX_CAPTURE_COUNT = 74
+const MAX_QUIET_COUNT = MAX_MOVE_COUNT - MAX_CAPTURE_COUNT // 144
 
 func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoard, pieceType int, genType int, moveList *[]Move) {
 	currentState := board.GetTopState()
@@ -50,7 +57,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				(*moveList) = append((*moveList), NewMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 
@@ -62,7 +69,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				(*moveList) = append((*moveList), NewMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 
@@ -75,7 +82,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// queen = rook + bishop!
 			validPositions := (rookMoves | bishopMoves) & ^friendlyOccupancyBitBoard & targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				(*moveList) = append((*moveList), NewMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 	}
@@ -312,19 +319,19 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		if !inCheck &&
 			castleKing &&
 			(GetIntermediaryRay(from, from+3)&targetBitBoard) == GetIntermediaryRay(from, from+3) {
-			(*moveList) = append((*moveList), NewMove(from, from+2, kingCastleFlag))
+			*moveList = append(*moveList, NewMove(from, from+2, kingCastleFlag))
 		}
 		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
 			(GetIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == GetIntermediaryRay(from, from-4) &&
 			(GetIntermediaryRay(from, from-3)&targetBitBoard) == GetIntermediaryRay(from, from-3) {
-			(*moveList) = append((*moveList), NewMove(from, from-2, queenCastleFlag))
+			*moveList = append(*moveList, NewMove(from, from-2, queenCastleFlag))
 		}
 	}
 
 	for to = PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-		(*moveList) = append((*moveList), NewMove(from, to, kingFlag))
+		*moveList = append(*moveList, NewMove(from, to, kingFlag))
 	}
 }
 
@@ -493,7 +500,12 @@ func generatePinned(board *Board, genType int, pinnedPieces *[]PinnedPieceInfo, 
 	}
 }
 
-func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
+func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
+	if genType == ALL {
+		moveList = board.GenerateMoves(CAPTURE, moveList)
+		moveList = board.GenerateMoves(QUIET, moveList)
+		return moveList[:]
+	}
 	currentState := board.GetTopState()
 
 	var friendlyPieces, enemyPieces *Pieces
@@ -508,10 +520,9 @@ func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
 	}
 
 	if friendlyPieces.King == 0 || enemyPieces.King == 0 {
-		return new([]Move)
+		return []Move{}
 	}
 
-	moveList = new([]Move)
 	pinnedPieces, pinnedPiecesBitBoard, checkingPieces := generateCheck(board)
 	inCheck := len(*checkingPieces) > 0
 
@@ -524,12 +535,12 @@ func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
 		case QUIET:
 			targetBitBoard = ^(friendlyPieces.OccupancyBitBoard() | enemyPieces.OccupancyBitBoard())
 		}
-		generatePinned(board, genType, pinnedPieces, moveList)
-		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, moveList)
-		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, moveList)
-		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, moveList)
-		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, moveList)
-		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, moveList)
+		generatePinned(board, genType, pinnedPieces, &moveList)
+		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
+		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
+		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
+		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, &moveList)
+		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, &moveList)
 	case 1:
 		// 1 Checker, quiet target bitboard is intermediary ray,
 		// capture target bitboard is the checker
@@ -539,11 +550,11 @@ func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
 		case QUIET:
 			targetBitBoard = (*checkingPieces)[0].intermediaryRay
 		}
-		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, moveList)
-		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, moveList)
-		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, moveList)
-		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, moveList)
-		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, moveList)
+		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
+		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
+		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
+		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, &moveList)
+		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, &moveList)
 
 	}
 	switch genType {
@@ -552,13 +563,17 @@ func (board *Board) GenerateMoves(genType int) (moveList *[]Move) {
 			enemyPieces.OccupancyBitBoard() & ^enemyPieceAttackBitBoard(board),
 			CAPTURE,
 			inCheck,
-			moveList)
+			&moveList)
 	case QUIET:
 		generateKing(board,
 			^(friendlyPieces.OccupancyBitBoard()|enemyPieces.OccupancyBitBoard()) & ^enemyPieceAttackBitBoard(board),
 			QUIET,
 			inCheck,
-			moveList)
+			&moveList)
+	}
+
+	if genType == CAPTURE_ONLY || genType == QUIET_ONLY {
+		return moveList[:]
 	}
 
 	return moveList
@@ -589,10 +604,10 @@ func (board *Board) InCheck() bool {
 	}
 
 	{
+		friendlyKing = friendlyPieces.King
 		if friendlyKing == 0 {
 			return true
 		}
-		friendlyKing = friendlyPieces.King
 		temp := friendlyKing
 		from = PopLSB(&temp)
 	}

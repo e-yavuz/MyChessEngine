@@ -10,10 +10,6 @@ import (
 
 var testBoard Board
 
-func allMoves(board *Board) []Move {
-	return append(*board.GenerateMoves(CAPTURE), *board.GenerateMoves(QUIET)...)
-}
-
 func convertStringToMap(input string) map[string]uint64 {
 	result := make(map[string]uint64)
 	lines := strings.Split(input, "\n")
@@ -65,7 +61,9 @@ func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[
 	if rootLevel {
 		rootNodes = make(map[string]uint64)
 	}
-	moveList := allMoves(board)
+
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
 	if ply == 1 && !rootLevel {
 		return uint64(len(moveList)), nil
 	}
@@ -83,7 +81,7 @@ func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[
 }
 
 func Test_StartPosition(t *testing.T) {
-	InitMagicBitBoardTable("../magic_rook", "../magic_bishop")
+	InitMagicBitBoardTable("../../magic_rook", "../../magic_bishop")
 	InitZobristTable()
 	test := InitStartBoard()
 	var perftOut uint64
@@ -123,7 +121,7 @@ func Test_StartPosition(t *testing.T) {
 }
 
 func Test_Position5(t *testing.T) {
-	InitMagicBitBoardTable("../magic_rook", "../magic_bishop")
+	InitMagicBitBoardTable("../../magic_rook", "../../magic_bishop")
 	InitZobristTable()
 	test := InitFENBoard("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
 	var perftOut, expected uint64

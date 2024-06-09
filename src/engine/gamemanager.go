@@ -57,7 +57,8 @@ func isInsufficientMaterial(board *Board) bool {
 }
 
 func GetGameState(board *Board) byte {
-	moveList := append(*board.GenerateMoves(CAPTURE), *board.GenerateMoves(QUIET)...)
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
 
 	// Look for mate/stalemate
 	if len(moveList) == 0 {
@@ -98,4 +99,32 @@ func IsBlackWin(gameResult byte) bool {
 
 func IsDraw(gameResult byte) bool {
 	return gameResult == DrawByArbiter || gameResult == FiftyMoveRule || gameResult == Repetition || gameResult == Stalemate || gameResult == InsufficientMaterial
+}
+
+func GameResultToString(gameResult byte) string {
+	switch gameResult {
+	case WhiteIsMated:
+		return "White is mated"
+	case BlackIsMated:
+		return "Black is mated"
+	case WhiteTimeout:
+		return "White timeout"
+	case BlackTimeout:
+		return "Black timeout"
+	case DrawByArbiter:
+		return "Draw by arbiter"
+	case FiftyMoveRule:
+		return "Fifty move rule"
+	case Repetition:
+		return "Repetition"
+	case Stalemate:
+		return "Stalemate"
+	case InsufficientMaterial:
+		return "Insufficient material"
+	case InProgress:
+		return "In progress"
+	case Error:
+		return "Error"
+	}
+	return "Unknown"
 }

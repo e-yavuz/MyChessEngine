@@ -217,9 +217,10 @@ func GetFlag(move Move) Flag {
 // is in list by seeing if the possible moves -> UCI == moveUCI (i.e. e2e4 is in the list)
 // returns true if move is in list and makes the move
 func (board *Board) TryMoveUCI(move string) (Move, bool) {
-	possibleMoves := append(*board.GenerateMoves(CAPTURE), *board.GenerateMoves(QUIET)...)
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
 
-	for _, possibleMove := range possibleMoves {
+	for _, possibleMove := range moveList {
 		if MoveToString(possibleMove) == move {
 			return possibleMove, true
 		}

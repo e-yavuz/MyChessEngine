@@ -15,3 +15,6 @@ v3
 
 v4
     +Extend search of pawns 1 move from promotion
+
+v5
+    +Stack allocation of moveLists (~15% faster nps)

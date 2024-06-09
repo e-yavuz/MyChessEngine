@@ -8,7 +8,7 @@ const (
 	MATE_SCORE          = -65535
 	MIN_VALUE           = -2147483648
 	MAX_VALUE           = 2147483648
-	MAX_EXTENSION_DEPTH = 3
+	MAX_EXTENSION_DEPTH = 16
 )
 
 var bestMoveThisIteration, bestMove Move
@@ -54,6 +54,18 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	default:
 	}
 
+	if plyFromRoot > 0 {
+		// Fifty move rule
+		if board.GetTopState().HalfMoveClock >= 100 {
+			return 0
+		}
+
+		// Threefold repetition
+		if board.RepetitionPositionHistory[board.GetTopState().ZobristKey] == 3 {
+			return 0
+		}
+	}
+
 	if ttScore := probeHash(depth, alpha, beta, board.GetTopState().ZobristKey); ttScore != MIN_VALUE {
 		if plyFromRoot == 0 {
 			bestMoveThisIteration = GetEntry(board.GetTopState().ZobristKey).best
@@ -68,9 +80,10 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		return eval
 	}
 
-	totalMoveList := *getAllMoves(board, plyFromRoot)
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
 
-	if len(totalMoveList) == 0 {
+	if len(moveList) == 0 {
 		if board.InCheck() {
 			return MATE_SCORE + int(plyFromRoot) // Checkmate
 		} else {
@@ -81,7 +94,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	hashF := hashfALPHA
 	bestMoveThisPath := NULL_MOVE
 
-	for _, move := range totalMoveList {
+	for _, move := range moveList {
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
@@ -130,7 +143,8 @@ func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) in
 		alpha = eval
 	}
 
-	captureMoveList := *board.GenerateMoves(CAPTURE)
+	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
+	captureMoveList = board.GenerateMoves(CAPTURE_ONLY, captureMoveList)
 	sort.Slice(captureMoveList, func(i, j int) bool {
 		return captureMoveList[i] > captureMoveList[j]
 	})
@@ -155,29 +169,24 @@ func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) in
 Returns a list of all possible moves for the current board state.
 The list is sorted such that the best move is first.
 */
-func getAllMoves(board *Board, plyFromRoot byte) *[]Move {
-	var totalMoveList []Move
-	captureList := *board.GenerateMoves(CAPTURE)
-	quietList := *board.GenerateMoves(QUIET)
+func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
+	if bestMove != NULL_MOVE && plyFromRoot == 0 {
+		moveList = append(moveList, bestMove)
+	}
+	moveList = board.GenerateMoves(CAPTURE, moveList)
+	moveList = board.GenerateMoves(QUIET, moveList)
 
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
-		totalMoveList = make([]Move, 0, len(captureList)+len(quietList)+1)
-		totalMoveList = append(totalMoveList, bestMove)
-		totalMoveList = append(totalMoveList, captureList...)
-		totalMoveList = append(totalMoveList, quietList...)
-		sort.Slice(totalMoveList[1:], func(i, j int) bool {
-			return totalMoveList[i] > totalMoveList[j]
+		sort.Slice(moveList[1:], func(i, j int) bool {
+			return moveList[i] > moveList[j]
 		})
 	} else {
-		totalMoveList = make([]Move, 0, len(captureList)+len(quietList))
-		totalMoveList = append(totalMoveList, captureList...)
-		totalMoveList = append(totalMoveList, quietList...)
-		sort.Slice(totalMoveList, func(i, j int) bool {
-			return totalMoveList[i] > totalMoveList[j]
+		sort.Slice(moveList, func(i, j int) bool {
+			return moveList[i] > moveList[j]
 		})
 	}
 
-	return &totalMoveList
+	return moveList[:]
 }
 
 /*
