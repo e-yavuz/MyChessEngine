@@ -77,10 +77,19 @@ const (
 	H8
 )
 
-const NULL_MOVE Move = 0
+type Move struct {
+	enc uint16
+	// 0-5: from
+	// 6-11: to
+	// 12-15: flags
+
+	priority int8
+	// used in move ordering
+}
+
+var NULL_MOVE = Move{enc: 0, priority: 0}
 
 type Position = byte
-type Move = uint16
 type Flag = uint16
 
 func PositionToSquare(position Position) string {
@@ -130,15 +139,15 @@ func abs(x int) int {
 }
 
 func NewMove(from, to Position, flag uint16) Move {
-	return Move(from) + (Move(to) << 6) + (flag << 12)
+	return Move{enc: uint16(from) + (uint16(to) << 6) + (flag << 12)}
 }
 
 func GetStartingPosition(move Move) Position {
-	return Position(move & 0x3F)
+	return Position(move.enc & 0x3F)
 }
 
 func GetTargetPosition(move Move) Position {
-	return Position((move & 0xFC0) >> 6)
+	return Position((move.enc & 0xFC0) >> 6)
 }
 
 /*
@@ -209,7 +218,7 @@ func FlagToString(flag Flag) string {
 }
 
 func GetFlag(move Move) Flag {
-	return move >> 12
+	return move.enc >> 12
 }
 
 // Trys to make a move by generating possible moves at ply 1, then checking if the move in UCI format
@@ -479,4 +488,12 @@ func MoveToString(move Move) string {
 		promoSuffix = "b"
 	}
 	return fmt.Sprintf("%s%s%s", PositionToSquare(GetStartingPosition(move)), PositionToSquare(GetTargetPosition(move)), promoSuffix)
+}
+
+func compareMove(a, b Move) bool {
+	// Idea is that if the move is a promotion, it is automatically valued over a non-promotion
+	if GetFlag(a) > epCaptureFlag || GetFlag(b) > epCaptureFlag {
+		return a.enc > b.enc
+	}
+	return a.priority > b.priority
 }
