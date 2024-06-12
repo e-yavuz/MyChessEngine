@@ -18,3 +18,6 @@ v4
 
 v5
     +Stack allocation of moveLists (~15% faster nps)
+
+v6
+    +MVV-LVA & promotion move ordering

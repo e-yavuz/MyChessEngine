@@ -237,9 +237,9 @@ func (board *Board) moveordering(moveList []Move) {
 		moveFlag := GetFlag(moveList[i])
 		var takenPiece int
 
-		if moveFlag&captureFlag != 0 {
+		if moveFlag&^captureFlag == 0 {
 			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
-		} else if moveFlag&epCaptureFlag != 0 {
+		} else if moveFlag&^epCaptureFlag == 0 {
 			takenPiece = PAWN
 		} else {
 			takenPiece = -1

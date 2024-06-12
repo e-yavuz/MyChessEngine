@@ -492,7 +492,7 @@ func MoveToString(move Move) string {
 
 func compareMove(a, b Move) bool {
 	// Idea is that if the move is a promotion, it is automatically valued over a non-promotion
-	if GetFlag(a) > epCaptureFlag || GetFlag(b) > epCaptureFlag {
+	if (GetFlag(a)|GetFlag(b))&0b1000 != 0 {
 		return a.enc > b.enc
 	}
 	return a.priority > b.priority

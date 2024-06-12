@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v6 (King Pawn Shield in evaluation)"
+	name = "ChessEngineEmre v6 (mvv_lva move ordering)"
 )
 
-var options Options = Options{HashSize: 16, Time_ms: 10000}
+var options Options = Options{HashSize: 16, Time_ms: 100}
 var uciDebug bool = false
 var gameBoard *engine.Board
 
@@ -142,22 +142,19 @@ func GoCommand(text string) engine.Move {
 		close(cancelChannel)
 	}()
 
-	move, eval, moveChain := gameBoard.StartSearch(cancelChannel)
+	var move engine.Move
+
+	if uciDebug {
+		newMove, eval, _ := gameBoard.StartSearchDebug(cancelChannel)
+		move = newMove
+		fmt.Printf("Evaluation: %f\n", float32(eval)/100)
+		fmt.Printf("TT occupancy: %f\n", float32(engine.TableSize)/engine.TableCapacity)
+	} else {
+		move = gameBoard.StartSearch(cancelChannel)
+
+	}
 
 	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
-
-	if uciDebug {
-		// Return best move chain and evaluation
-		fmt.Print("Move chain: ")
-		for _, move := range moveChain {
-			fmt.Print(engine.MoveToString(move) + " ")
-		}
-		fmt.Printf("\nEvaluation: %d, Searched depth: %d\n", eval, len(moveChain))
-	}
-
-	if uciDebug {
-		fmt.Printf("TT occupancy: %f\n", float32(engine.TableSize)/engine.TableCapacity)
-	}
 
 	return move
 }
@@ -167,10 +164,8 @@ func DebugCommand(text string) {
 	text = strings.TrimPrefix(text, "debug ")
 	if text == "on" {
 		uciDebug = true
-		engine.DebugMode = true
 	} else if text == "off" {
 		uciDebug = false
-		engine.DebugMode = false
 	}
 }
 
