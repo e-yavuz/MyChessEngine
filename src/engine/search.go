@@ -1,7 +1,6 @@
 package chessengine
 
 import (
-	"fmt"
 	"sort"
 )
 
@@ -9,20 +8,15 @@ const (
 	MATE_SCORE          = -65535
 	MIN_VALUE           = -2147483648
 	MAX_VALUE           = 2147483648
-	MAX_EXTENSION_DEPTH = 16
+	MAX_EXTENSION_DEPTH = 8
 )
 
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration, bestEval int
-var bestMoveChain [50]Move
-var DebugMode bool
 
-func (board *Board) StartSearch(cancelChannel chan int) (Move, int, []Move) {
+func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
-	if DebugMode {
-		bestMoveChain[0] = NULL_MOVE
-	}
 
 	for {
 		bestMoveThisIteration = NULL_MOVE
@@ -33,14 +27,11 @@ func (board *Board) StartSearch(cancelChannel chan int) (Move, int, []Move) {
 			depth++
 			bestMove = bestMoveThisIteration
 			bestEval = bestEvalThisIteration
-			if DebugMode {
-				fmt.Printf("Depth: %d, Best eval: %d, Move chain: [%s]\n", depth-1, bestEval, MoveChainToString(depth-1))
-			}
 		}
 
 		select {
 		case <-cancelChannel:
-			return bestMove, bestEval, bestMoveChain[:depth-1]
+			return bestMove
 		default:
 		}
 	}
@@ -124,9 +115,6 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		}
 		if score > alpha { // This move is better than the current best move
 			bestMoveThisPath = move
-			if DebugMode && score > bestEvalThisIteration {
-				bestMoveChain[plyFromRoot] = move
-			}
 			hashF = hashfEXACT
 			alpha = score
 			if plyFromRoot == 0 {
@@ -157,8 +145,9 @@ func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) in
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
 	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
+	board.moveordering(captureMoveList)
 	sort.Slice(captureMoveList, func(i, j int) bool {
-		return captureMoveList[i] > captureMoveList[j]
+		return compareMove(captureMoveList[i], captureMoveList[j])
 	})
 
 	for _, move := range captureMoveList {
@@ -189,11 +178,11 @@ func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
 
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
 		sort.Slice(moveList[1:], func(i, j int) bool {
-			return moveList[i] > moveList[j]
+			return compareMove(moveList[i], moveList[j])
 		})
 	} else {
 		sort.Slice(moveList, func(i, j int) bool {
-			return moveList[i] > moveList[j]
+			return compareMove(moveList[i], moveList[j])
 		})
 	}
 
@@ -224,10 +213,64 @@ func extendSearch(board *Board, move Move, numExtensions byte) byte {
 	return 0
 }
 
-func MoveChainToString(length byte) (retval string) {
-	for _, move := range bestMoveChain[:length] {
-		retval += MoveToString(move) + " "
+/*
+Source: https://lup.lub.lu.se/luur/download?func=downloadFile&recordOId=9069249&fileOId=9069251
+
+MVV-LVA (MostValuable Victim – Least Valuable Aggressor). In chess, moves, where an
+opponent’s piece of high value is taken by a piece of low value of one’s own, are
+often good moves.
+
+The MVV-LVA heuristic uses this reasoning by applying a score
+to each move based on the difference in value between a taking piece and the
+piece that is taken.
+
+The higher the value of the taken piece, and the lower value of
+the taking piece, the higher the priority score.
+
+For example, a very promising move, when available, is a move where one player may take
+the opponent’s queen with their own pawn and this move is thus given the highest priority
+by the MVV-LVA heuristic.
+*/
+func (board *Board) moveordering(moveList []Move) {
+	for i := range moveList {
+		movingPiece := board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE
+		moveFlag := GetFlag(moveList[i])
+		var takenPiece int
+
+		if moveFlag&captureFlag != 0 {
+			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
+		} else if moveFlag&epCaptureFlag != 0 {
+			takenPiece = PAWN
+		} else {
+			takenPiece = -1
+		}
+
+		switch movingPiece {
+		case PAWN:
+			moveList[i].priority += -1
+		case KNIGHT:
+			moveList[i].priority += -3
+		case BISHOP:
+			moveList[i].priority += -3
+		case ROOK:
+			moveList[i].priority += -5
+		case QUEEN:
+			moveList[i].priority += -9
+		case KING:
+			moveList[i].priority += -10
+		}
+
+		switch takenPiece {
+		case PAWN:
+			moveList[i].priority += 10
+		case KNIGHT:
+			moveList[i].priority += 30
+		case BISHOP:
+			moveList[i].priority += 30
+		case ROOK:
+			moveList[i].priority += 50
+		case QUEEN:
+			moveList[i].priority += 90
+		}
 	}
-	retval = retval[:len(retval)-1]
-	return
 }
