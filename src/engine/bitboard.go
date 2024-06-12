@@ -67,3 +67,34 @@ func reverseStringHelper(s string) string {
 	}
 	return string(runes)
 }
+
+/**
+ * Flip a bitboard vertically about the centre ranks.
+ * Rank 1 is mapped to rank 8 and vice versa.
+ * @param x any bitboard
+ * @return bitboard x flipped vertically
+ */
+func flipVertical(x BitBoard) BitBoard {
+	const k1 BitBoard = 0x00FF00FF00FF00FF
+	const k2 BitBoard = 0x0000FFFF0000FFFF
+	x = ((x >> 8) & k1) | ((x & k1) << 8)
+	x = ((x >> 16) & k2) | ((x & k2) << 16)
+	x = (x >> 32) | (x << 32)
+	return x
+}
+
+/**
+ * Mirror a bitboard horizontally about the center files.
+ * File a is mapped to file h and vice versa.
+ * @param x any bitboard
+ * @return bitboard x mirrored horizontally
+ */
+func mirrorHorizontal(x BitBoard) BitBoard {
+	const k1 BitBoard = 0x5555555555555555
+	const k2 BitBoard = 0x3333333333333333
+	const k4 BitBoard = 0x0f0f0f0f0f0f0f0f
+	x = ((x >> 1) & k1) + 2*(x&k1)
+	x = ((x >> 2) & k2) + 4*(x&k2)
+	x = ((x >> 4) & k4) + 16*(x&k4)
+	return x
+}
