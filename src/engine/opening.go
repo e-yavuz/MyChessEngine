@@ -22,7 +22,7 @@ e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 g8f6 b1c3 f8b4 d4c6 b7c6 d1d4 d8e7 f2f3 d7d5 
 */
 // Reads in each line, and per move calculates a Zobrist key
 func openGames(filepath string, max_opening_depth int) {
-	openingMap = make(map[uint64]map[uint16]bool)
+	openingMap = make(map[uint64]map[Move]bool)
 	InitMagicBitBoardTable("magic_rook", "magic_bishop")
 	InitZobristTable()
 	// Open the file
@@ -124,7 +124,7 @@ func (board *Board) GetOpeningBookMove() Move {
 			moves := parts[1:]
 			// Pick a random move from the list
 			move, _ := strconv.Atoi(moves[rand.Intn(len(moves))])
-			return Move(move)
+			return Move{enc: uint16(move)}
 		}
 	}
 	// Could not find opening book move, switch to search
