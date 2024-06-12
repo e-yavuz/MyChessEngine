@@ -37,9 +37,6 @@ func StartGameFile(engine1 string, engine2 string, fenFile string, startIndex, n
 
 		i++
 	}
-	fmt.Printf("Read %d FEN strings\n", len(fenBoards))
-	// Print out fenBoards
-	fmt.Printf("fenBoards: %v\n", fenBoards)
 	return StartGame(engine1, engine2, fenBoards[startIndex:])
 }
 
