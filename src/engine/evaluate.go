@@ -147,7 +147,12 @@ func InitPeSTO() {
 }
 
 func (board *Board) Evaluate() (retval int) {
-	retval += PeSTOTableEval(board)
+	/******************
+	1. Piece evaluation
+	*******************/
+	pieceVal, mgPhase, _ := PeSTOTableEval(board)
+
+	retval += pieceVal
 
 	return retval
 }
