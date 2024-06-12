@@ -1,6 +1,7 @@
 package chessengine
 
 import (
+	"fmt"
 	"sort"
 )
 
@@ -13,10 +14,15 @@ const (
 
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration, bestEval int
+var bestMoveChain [50]Move
+var DebugMode bool
 
-func (board *Board) StartSearch(cancelChannel chan int) (Move, int, byte) {
+func (board *Board) StartSearch(cancelChannel chan int) (Move, int, []Move) {
 	var depth byte = 1
 	bestMove = NULL_MOVE
+	if DebugMode {
+		bestMoveChain[0] = NULL_MOVE
+	}
 
 	for {
 		bestMoveThisIteration = NULL_MOVE
@@ -27,11 +33,14 @@ func (board *Board) StartSearch(cancelChannel chan int) (Move, int, byte) {
 			depth++
 			bestMove = bestMoveThisIteration
 			bestEval = bestEvalThisIteration
+			if DebugMode {
+				fmt.Printf("Depth: %d, Best eval: %d, Move chain: [%s]\n", depth-1, bestEval, MoveChainToString(depth-1))
+			}
 		}
 
 		select {
 		case <-cancelChannel:
-			return bestMove, bestEval, depth
+			return bestMove, bestEval, bestMoveChain[:depth-1]
 		default:
 		}
 	}
@@ -76,11 +85,10 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 
 	if depth == 0 {
 		eval := board.quiescenceSearch(alpha, beta, cancelChannel)
-		// recordHash(0, eval, hashfEXACT, NULL_MOVE, board.GetTopState().ZobristKey)
 		return eval
 	}
 
-	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList := make([]Move, 0, MAX_MOVE_COUNT+1)
 	moveList = getAllMoves(board, plyFromRoot, moveList)
 
 	if len(moveList) == 0 {
@@ -108,13 +116,17 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		}
 
 		if score >= beta {
-			// If the score is greater than or equal to beta, it means that the opponent has a better move to choose.
+			// If the score is greater than or equal to beta,
+			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
 			recordHash(depth, beta, hashfBETA, move, board.GetTopState().ZobristKey)
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
 			bestMoveThisPath = move
+			if DebugMode && score > bestEvalThisIteration {
+				bestMoveChain[plyFromRoot] = move
+			}
 			hashF = hashfEXACT
 			alpha = score
 			if plyFromRoot == 0 {
@@ -210,4 +222,12 @@ func extendSearch(board *Board, move Move, numExtensions byte) byte {
 	}
 
 	return 0
+}
+
+func MoveChainToString(length byte) (retval string) {
+	for _, move := range bestMoveChain[:length] {
+		retval += MoveToString(move) + " "
+	}
+	retval = retval[:len(retval)-1]
+	return
 }
