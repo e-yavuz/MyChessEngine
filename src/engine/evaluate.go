@@ -150,7 +150,7 @@ func (board *Board) Evaluate() (retval int) {
 	/******************
 	1. Piece evaluation
 	*******************/
-	pieceVal, mgPhase, _ := PeSTOTableEval(board)
+	pieceVal, _, _ := PeSTOTableEval(board)
 
 	retval += pieceVal
 
@@ -158,7 +158,7 @@ func (board *Board) Evaluate() (retval int) {
 }
 
 // Inspired heavily by https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function, calculate with White being positive
-func PeSTOTableEval(board *Board) (retval int) {
+func PeSTOTableEval(board *Board) (retval, mgPhase, egPhase int) {
 	var mg, eg [2]int
 	var gamePhase int
 
@@ -183,7 +183,7 @@ func PeSTOTableEval(board *Board) (retval int) {
 		mgScore *= -1
 		egScore *= -1
 	}
-	mgPhase := min(24, gamePhase) /* in case of early promotion */
-	egPhase := 24 - mgPhase
-	return (mgScore*mgPhase + egScore*egPhase) / 24
+	mgPhase = min(24, gamePhase) /* in case of early promotion */
+	egPhase = 24 - mgPhase
+	return (mgScore*mgPhase + egScore*egPhase) / 24, mgPhase, egPhase
 }
