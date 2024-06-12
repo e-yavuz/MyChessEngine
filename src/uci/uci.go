@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v5 (Stack allocation of moveLists)"
+	name = "ChessEngineEmre v6 (King Pawn Shield in evaluation)"
 )
 
-var options Options = Options{HashSize: 16, Time_ms: 100}
+var options Options = Options{HashSize: 16, Time_ms: 10000}
 var uciDebug bool = false
 var gameBoard *engine.Board
 
@@ -91,13 +91,14 @@ func IsReadyCommand() {
 
 // PositionCommand is the response to the position command
 func PositionCommand(text string) {
+	newBoard := new(engine.Board)
 	text = strings.TrimPrefix(text, "position ")
 	if strings.HasPrefix(text, "startpos") {
-		gameBoard = engine.InitStartBoard()
+		newBoard = engine.InitStartBoard()
 		text = strings.TrimPrefix(text, "startpos ")
 	} else if strings.HasPrefix(text, "fen") {
 		text = strings.TrimPrefix(text, "fen ")
-		gameBoard = engine.InitFENBoard(text)
+		newBoard = engine.InitFENBoard(text)
 	}
 
 	// Finds index of substring "moves" if it exists in text and
@@ -106,15 +107,16 @@ func PositionCommand(text string) {
 		index := strings.Index(text, "moves")
 		moves := strings.Split(text[index+len("moves")+1:], " ")
 		for _, moveUCI := range moves {
-			move, ok := gameBoard.TryMoveUCI(moveUCI)
+			move, ok := newBoard.TryMoveUCI(moveUCI)
 			if !ok {
-				gameBoard = nil
 				fmt.Println("Invalid move: " + moveUCI)
+				return
 			} else {
-				gameBoard.MakeMove(move)
+				newBoard.MakeMove(move)
 			}
 		}
 	}
+	gameBoard = newBoard
 }
 
 // GoCommand is the response to the go command, it will do a search using iterative deepening
@@ -140,9 +142,18 @@ func GoCommand(text string) engine.Move {
 		close(cancelChannel)
 	}()
 
-	move, _, _ := gameBoard.StartSearch(cancelChannel)
+	move, eval, moveChain := gameBoard.StartSearch(cancelChannel)
 
 	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
+
+	if uciDebug {
+		// Return best move chain and evaluation
+		fmt.Print("Move chain: ")
+		for _, move := range moveChain {
+			fmt.Print(engine.MoveToString(move) + " ")
+		}
+		fmt.Printf("\nEvaluation: %d, Searched depth: %d\n", eval, len(moveChain))
+	}
 
 	if uciDebug {
 		fmt.Printf("TT occupancy: %f\n", float32(engine.TableSize)/engine.TableCapacity)
@@ -156,8 +167,10 @@ func DebugCommand(text string) {
 	text = strings.TrimPrefix(text, "debug ")
 	if text == "on" {
 		uciDebug = true
+		engine.DebugMode = true
 	} else if text == "off" {
 		uciDebug = false
+		engine.DebugMode = false
 	}
 }
 
@@ -168,7 +181,6 @@ func PossibleMoves() {
 	} else {
 		moveList := make([]engine.Move, 0, engine.MAX_MOVE_COUNT)
 		moveList = gameBoard.GenerateMoves(engine.ALL, moveList)
-		moveList = moveList[:]
 		for _, move := range moveList {
 			fmt.Print(engine.MoveToString(move) + " ")
 		}
@@ -192,7 +204,16 @@ func TestGame() {
 			}
 			gameBoard.MakeMove(move)
 			gameBoard.MakeMove(GoCommand("go"))
+
 			fmt.Println(gameBoard.DisplayBoard())
+		} else if strings.HasPrefix(text, "ai") {
+			gameBoard.MakeMove(GoCommand("go"))
+			fmt.Println(gameBoard.DisplayBoard())
+		} else if strings.HasPrefix(text, "undomove") {
+			gameBoard.UnMakeMove()
+			fmt.Println(gameBoard.DisplayBoard())
+		} else {
+			fmt.Println("Unknown command: " + text)
 		}
 	}
 }
