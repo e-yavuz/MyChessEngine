@@ -14,6 +14,7 @@ const (
 	BISHOP
 	QUEEN
 	KING
+	NULL_PIECE
 )
 
 const MAX_MOVE_COUNT = 218
