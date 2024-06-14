@@ -7,6 +7,8 @@ var bestMoveChain []Move
 func (board *Board) StartSearchDebug(cancelChannel chan int) (Move, int, []Move) {
 	var depth byte = 1
 	bestMove = NULL_MOVE
+	DebugCollisions = 0
+	DebugNewEntries = 0
 
 	for {
 		bestMoveThisIteration = NULL_MOVE
