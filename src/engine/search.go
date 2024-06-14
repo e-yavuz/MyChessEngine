@@ -12,29 +12,12 @@ const (
 	MAX_DEPTH                 = 64
 )
 
-const (
-	killerMoveBias = 100
-)
-
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration, bestEval int16
-
-var killerMoves [MAX_DEPTH]map[Move]bool
-
-func init() {
-	for i := range killerMoves {
-		killerMoves[i] = make(map[Move]bool, MAX_MOVE_COUNT)
-	}
-}
 
 func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
-	for i := range killerMoves {
-		for k := range killerMoves[i] {
-			delete(killerMoves[i], k)
-		}
-	}
 
 	for {
 		bestMoveThisIteration = NULL_MOVE
@@ -129,7 +112,6 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int16, numExtens
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
 			recordHash(depth, beta, hashfBETA, move, board.GetTopState().ZobristKey)
-			killerMoves[plyFromRoot][move] = true
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
@@ -164,7 +146,7 @@ func (board *Board) quiescenceSearch(alpha, beta int16, plyFromRoot byte, cancel
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
 	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
-	board.moveordering(captureMoveList, plyFromRoot)
+	board.moveordering(captureMoveList)
 	sort.Slice(captureMoveList, func(i, j int) bool {
 		return compareMove(captureMoveList[i], captureMoveList[j])
 	})
@@ -175,7 +157,6 @@ func (board *Board) quiescenceSearch(alpha, beta int16, plyFromRoot byte, cancel
 		board.UnMakeMove()
 
 		if eval >= beta {
-			killerMoves[plyFromRoot][move] = true
 			return beta
 		}
 		if eval > alpha {
@@ -251,20 +232,15 @@ For example, a very promising move, when available, is a move where one player m
 the opponent’s queen with their own pawn and this move is thus given the highest priority
 by the MVV-LVA heuristic.
 */
-func (board *Board) moveordering(moveList []Move, plyFromRoot byte) {
+func (board *Board) moveordering(moveList []Move) {
 	for i := range moveList {
-		ok, val := killerMoves[plyFromRoot][moveList[i]]
-		if ok && val {
-			moveList[i].priority = killerMoveBias
-			continue
-		}
 		movingPiece := board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE
 		moveFlag := GetFlag(moveList[i])
 		var takenPiece int
 
-		if moveFlag&^captureFlag == 0 {
+		if moveFlag == captureFlag {
 			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
-		} else if moveFlag&^epCaptureFlag == 0 {
+		} else if moveFlag == epCaptureFlag {
 			takenPiece = PAWN
 		} else {
 			continue

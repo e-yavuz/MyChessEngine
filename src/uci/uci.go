@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v7 (killer moves + corrected move ordering)"
+	name = "ChessEngineEmre v6b (improved move ordering)"
 )
 
 var options Options = Options{HashSize: 16, Time_ms: 100, UseBook: true}
