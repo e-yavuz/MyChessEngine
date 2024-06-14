@@ -2,57 +2,9 @@ package chessengine
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
-
-var testBoard Board
-
-func convertStringToMap(input string) map[string]uint64 {
-	result := make(map[string]uint64)
-	lines := strings.Split(input, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, ":")
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		value, err := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 64)
-		if err != nil {
-			continue
-		}
-		result[key] = value
-	}
-	return result
-}
-
-func compareMoveLists(map1, map2 map[string]uint64) (missingInMap1, missingInMap2 map[string]uint64, mismatched map[string][2]uint64) {
-	missingInMap1 = make(map[string]uint64)
-	missingInMap2 = make(map[string]uint64)
-	mismatched = make(map[string][2]uint64)
-
-	for key, val1 := range map1 {
-		if val2, ok := map2[key]; !ok {
-			missingInMap2[key] = val1
-		} else if val1 != val2 {
-			mismatched[key] = [2]uint64{val1, val2}
-		}
-	}
-
-	for key, value := range map2 {
-		if _, ok := map1[key]; !ok {
-			missingInMap1[key] = value
-		}
-	}
-
-	return
-}
 
 func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[string]uint64) {
 	if ply == 0 {
