@@ -21,3 +21,6 @@ v5
 
 v6
     +MVV-LVA & promotion move ordering
+
+v7
+    +corrected MVV & killer moves
