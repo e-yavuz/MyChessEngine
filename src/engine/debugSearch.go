@@ -73,7 +73,7 @@ func (board *Board) searchDebug(depth, plyFromRoot byte, alpha, beta int, numExt
 	}
 
 	if depth == 0 {
-		eval := board.quiescenceSearch(alpha, beta, cancelChannel)
+		eval := board.quiescenceSearch(alpha, beta, plyFromRoot+1, cancelChannel)
 		return eval, []Move{}
 	}
 

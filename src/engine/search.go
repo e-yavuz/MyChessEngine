@@ -9,14 +9,32 @@ const (
 	MIN_VALUE           = -2147483648
 	MAX_VALUE           = 2147483648
 	MAX_EXTENSION_DEPTH = 8
+	MAX_DEPTH           = 64
+)
+
+const (
+	killerMoveBias = 100
 )
 
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration, bestEval int
 
+var killerMoves [MAX_DEPTH]map[Move]bool
+
+func init() {
+	for i := range killerMoves {
+		killerMoves[i] = make(map[Move]bool, MAX_MOVE_COUNT)
+	}
+}
+
 func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
+	for i := range killerMoves {
+		for k := range killerMoves[i] {
+			delete(killerMoves[i], k)
+		}
+	}
 
 	for {
 		bestMoveThisIteration = NULL_MOVE
@@ -75,7 +93,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	}
 
 	if depth == 0 {
-		eval := board.quiescenceSearch(alpha, beta, cancelChannel)
+		eval := board.quiescenceSearch(alpha, beta, plyFromRoot+1, cancelChannel)
 		return eval
 	}
 
@@ -111,6 +129,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
 			recordHash(depth, beta, hashfBETA, move, board.GetTopState().ZobristKey)
+			killerMoves[plyFromRoot][move] = true
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
@@ -128,7 +147,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	return alpha
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) int {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelChannel chan int) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return 0
@@ -145,17 +164,18 @@ func (board *Board) quiescenceSearch(alpha, beta int, cancelChannel chan int) in
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
 	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
-	board.moveordering(captureMoveList)
+	board.moveordering(captureMoveList, plyFromRoot)
 	sort.Slice(captureMoveList, func(i, j int) bool {
 		return compareMove(captureMoveList[i], captureMoveList[j])
 	})
 
 	for _, move := range captureMoveList {
 		board.MakeMove(move)
-		eval := -board.quiescenceSearch(-beta, -alpha, cancelChannel)
+		eval := -board.quiescenceSearch(-beta, -alpha, plyFromRoot+1, cancelChannel)
 		board.UnMakeMove()
 
 		if eval >= beta {
+			killerMoves[plyFromRoot][move] = true
 			return beta
 		}
 		if eval > alpha {
@@ -231,8 +251,13 @@ For example, a very promising move, when available, is a move where one player m
 the opponent’s queen with their own pawn and this move is thus given the highest priority
 by the MVV-LVA heuristic.
 */
-func (board *Board) moveordering(moveList []Move) {
+func (board *Board) moveordering(moveList []Move, plyFromRoot byte) {
 	for i := range moveList {
+		ok, val := killerMoves[plyFromRoot][moveList[i]]
+		if ok && val {
+			moveList[i].priority = killerMoveBias
+			continue
+		}
 		movingPiece := board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE
 		moveFlag := GetFlag(moveList[i])
 		var takenPiece int
@@ -242,7 +267,7 @@ func (board *Board) moveordering(moveList []Move) {
 		} else if moveFlag&^epCaptureFlag == 0 {
 			takenPiece = PAWN
 		} else {
-			takenPiece = -1
+			continue
 		}
 
 		switch movingPiece {

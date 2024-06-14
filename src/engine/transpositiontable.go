@@ -15,7 +15,9 @@ type tagHASHE struct { // Size: 16 bytes
 }
 
 const TableCapacity = 65536 * 64 // 64 MB table with 16 byte size entries
-var TableSize = 0
+var DebugTableSize = 0
+var DebugCollisions = 0
+var DebugNewEntries = 0
 
 var hash_table [TableCapacity]tagHASHE
 
@@ -41,8 +43,11 @@ func probeHash(depth byte, alpha, beta int, key uint64) int {
 func recordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
 	phashe := &hash_table[key%TableCapacity]
 	if phashe.key == 0 {
-		TableSize++
+		DebugTableSize++
+	} else if phashe.key != key {
+		DebugCollisions++
 	}
+	DebugNewEntries++
 
 	phashe.key = key
 	phashe.best = bestMove
