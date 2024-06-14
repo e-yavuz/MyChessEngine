@@ -5,15 +5,15 @@ import (
 )
 
 const (
-	MATE_SCORE          int16 = MIN_VALUE + 1
-	MIN_VALUE           int16 = -32767
-	MAX_VALUE           int16 = 32767
-	MAX_EXTENSION_DEPTH       = 8
-	MAX_DEPTH                 = 64
+	MATE_SCORE          = -65535
+	MIN_VALUE           = -2147483648
+	MAX_VALUE           = 2147483648
+	MAX_EXTENSION_DEPTH = 8
+	MAX_DEPTH           = 64
 )
 
 var bestMoveThisIteration, bestMove Move
-var bestEvalThisIteration, bestEval int16
+var bestEvalThisIteration, bestEval int
 
 func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
@@ -47,7 +47,7 @@ func (board *Board) StartSearch(cancelChannel chan int) Move {
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) search(depth, plyFromRoot byte, alpha, beta int16, numExtensions byte, cancelChannel chan int) int16 {
+func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensions byte, cancelChannel chan int) int {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -85,7 +85,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int16, numExtens
 
 	if len(moveList) == 0 {
 		if board.InCheck() {
-			return MATE_SCORE + int16(plyFromRoot) // Checkmate
+			return MATE_SCORE + int(plyFromRoot) // Checkmate
 		} else {
 			return 0 // Stalemate
 		}
@@ -129,7 +129,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int16, numExtens
 	return alpha
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int16, plyFromRoot byte, cancelChannel chan int) int16 {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelChannel chan int) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return 0

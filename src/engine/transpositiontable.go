@@ -6,23 +6,22 @@ const (
 	hashfBETA
 )
 
-type tagHASHE struct {
-	key   uint64 // 8 bytes (zobrist key)
-	value int16  // 2 bytes (score)
-	best  Move   // 2 bytes (best move)
-	depth byte   // 1 byte (depth searched when recorded)
-	flags byte   // 1 byte (hashfEXACT | hashfALPHA | hashfBETA)
+type tagHASHE struct { // Size: 16 bytes
+	key   uint64 // 8 bytes
+	depth byte   // 1 byte
+	flags byte   // 1 byte
+	value int    // 4 bytes
+	best  Move   // 2 bytes
 }
 
-const sizeTagHASHE = 12                                 // Size of tagHASHE struct in bytes
-const TableCapacity = (1024 * 1024 / sizeTagHASHE) * 16 // 16 MB table with 12 byte size entries
+const TableCapacity = 65536 * 64 // 64 MB table with 16 byte size entries
 var DebugTableSize = 0
 var DebugCollisions = 0
 var DebugNewEntries = 0
 
 var hash_table [TableCapacity]tagHASHE
 
-func probeHash(depth byte, alpha, beta int16, key uint64) int16 {
+func probeHash(depth byte, alpha, beta int, key uint64) int {
 	phashe := &hash_table[key%TableCapacity]
 
 	if phashe.key == key {
@@ -41,7 +40,7 @@ func probeHash(depth byte, alpha, beta int16, key uint64) int16 {
 	return MIN_VALUE
 }
 
-func recordHash(depth byte, val int16, hashf byte, bestMove Move, key uint64) {
+func recordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
 	phashe := &hash_table[key%TableCapacity]
 	if phashe.key == 0 {
 		DebugTableSize++

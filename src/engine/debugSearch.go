@@ -4,7 +4,7 @@ import "fmt"
 
 var bestMoveChain []Move
 
-func (board *Board) StartSearchDebug(cancelChannel chan int) (Move, int16, []Move) {
+func (board *Board) StartSearchDebug(cancelChannel chan int) (Move, int, []Move) {
 	var depth byte = 1
 	bestMove = NULL_MOVE
 
@@ -42,7 +42,7 @@ func (board *Board) StartSearchDebug(cancelChannel chan int) (Move, int16, []Mov
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) searchDebug(depth, plyFromRoot byte, alpha, beta int16, numExtensions byte, cancelChannel chan int) (int16, []Move) {
+func (board *Board) searchDebug(depth, plyFromRoot byte, alpha, beta int, numExtensions byte, cancelChannel chan int) (int, []Move) {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -80,7 +80,7 @@ func (board *Board) searchDebug(depth, plyFromRoot byte, alpha, beta int16, numE
 
 	if len(moveList) == 0 {
 		if board.InCheck() {
-			return MATE_SCORE + int16(plyFromRoot), []Move{} // Checkmate
+			return MATE_SCORE + int(plyFromRoot), []Move{} // Checkmate
 		} else {
 			return 0, []Move{} // Stalemate
 		}
