@@ -14,7 +14,8 @@ type tagHASHE struct { // Size: 16 bytes
 	best  Move   // 2 bytes
 }
 
-const TableCapacity = 65536 * 64 // 64 MB table with 16 byte size entries
+const sizeTagHASHE = 16
+const TableCapacity = (1024 * 1024 / sizeTagHASHE) * 64 // 64 MB table with 16 byte size entries
 var DebugTableSize = 0
 var DebugCollisions = 0
 var DebugNewEntries = 0
@@ -46,6 +47,9 @@ func recordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
 		DebugTableSize++
 	} else if phashe.key != key {
 		DebugCollisions++
+	} else if phashe.key == key && phashe.depth > depth {
+		DebugCollisions++
+		return
 	}
 	DebugNewEntries++
 
