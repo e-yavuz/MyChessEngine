@@ -56,7 +56,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, NewMove(from, to, flag))
+				*moveList = append(*moveList, newMove(from, to, flag))
 			}
 		}
 
@@ -68,7 +68,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, NewMove(from, to, flag))
+				*moveList = append(*moveList, newMove(from, to, flag))
 			}
 		}
 
@@ -81,7 +81,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// queen = rook + bishop!
 			validPositions := (rookMoves | bishopMoves) & ^friendlyOccupancyBitBoard & targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, NewMove(from, to, flag))
+				*moveList = append(*moveList, newMove(from, to, flag))
 			}
 		}
 	}
@@ -317,20 +317,20 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		// Check king can move at least 2 to the right (emptiness included implicitly)
 		if !inCheck &&
 			castleKing &&
-			(GetIntermediaryRay(from, from+3)&targetBitBoard) == GetIntermediaryRay(from, from+3) {
-			*moveList = append(*moveList, NewMove(from, from+2, kingCastleFlag))
+			(getIntermediaryRay(from, from+3)&targetBitBoard) == getIntermediaryRay(from, from+3) {
+			*moveList = append(*moveList, newMove(from, from+2, kingCastleFlag))
 		}
 		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
-			(GetIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == GetIntermediaryRay(from, from-4) &&
-			(GetIntermediaryRay(from, from-3)&targetBitBoard) == GetIntermediaryRay(from, from-3) {
-			*moveList = append(*moveList, NewMove(from, from-2, queenCastleFlag))
+			(getIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == getIntermediaryRay(from, from-4) &&
+			(getIntermediaryRay(from, from-3)&targetBitBoard) == getIntermediaryRay(from, from-3) {
+			*moveList = append(*moveList, newMove(from, from-2, queenCastleFlag))
 		}
 	}
 
 	for to = PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-		*moveList = append(*moveList, NewMove(from, to, kingFlag))
+		*moveList = append(*moveList, newMove(from, to, kingFlag))
 	}
 }
 
@@ -387,7 +387,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 			*checkingPieces = append(*checkingPieces,
 				CheckerInfo{
 					*board.PieceInfoArr[to], to, 0})
-			PlaceOnBitBoard(&pinnedPiecesBitBoard, to)
+			placeOnBitBoard(&pinnedPiecesBitBoard, to)
 		}
 	}
 
@@ -406,7 +406,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 			*checkingPieces = append(*checkingPieces,
 				CheckerInfo{
 					*board.PieceInfoArr[to], to, 0})
-			PlaceOnBitBoard(&pinnedPiecesBitBoard, to)
+			placeOnBitBoard(&pinnedPiecesBitBoard, to)
 		}
 	}
 
@@ -419,7 +419,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 		possibleCheckers &= enemyPieces.Queen | enemyPieces.Rook
 
 		for to = PopLSB(&possibleCheckers); to != INVALID_POSITION; to = PopLSB(&possibleCheckers) {
-			checkRay := GetIntermediaryRay(from, to)
+			checkRay := getIntermediaryRay(from, to)
 			checkerPieceInfo := CheckerInfo{*board.PieceInfoArr[to], to, checkRay}
 
 			checkRayPinned := checkRay & friendlyOccupancyBitBoard
@@ -436,7 +436,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 						*board.PieceInfoArr[friendlyPinnedPosition],
 						friendlyPinnedPosition,
 						checkRay & ^(BitBoard(1) << friendlyPinnedPosition)})
-				PlaceOnBitBoard(&pinnedPiecesBitBoard, friendlyPinnedPosition)
+				placeOnBitBoard(&pinnedPiecesBitBoard, friendlyPinnedPosition)
 			}
 		}
 	}
@@ -447,7 +447,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 		possibleCheckers &= enemyPieces.Queen | enemyPieces.Bishop
 
 		for to = PopLSB(&possibleCheckers); to != INVALID_POSITION; to = PopLSB(&possibleCheckers) {
-			checkRay := GetIntermediaryRay(from, to)
+			checkRay := getIntermediaryRay(from, to)
 			checkerPieceInfo := CheckerInfo{*board.PieceInfoArr[to], to, checkRay}
 
 			checkRayPinned := checkRay & friendlyOccupancyBitBoard
@@ -464,7 +464,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 						*board.PieceInfoArr[friendlyPinnedPosition],
 						friendlyPinnedPosition,
 						checkRay & ^(BitBoard(1) << friendlyPinnedPosition)})
-				PlaceOnBitBoard(&pinnedPiecesBitBoard, friendlyPinnedPosition)
+				placeOnBitBoard(&pinnedPiecesBitBoard, friendlyPinnedPosition)
 			}
 		}
 	}
@@ -577,12 +577,12 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 // Helper function to generate moves for a bitboard of pieces given a static direction
 func moveListHelper(bitboard BitBoard, moveDir Direction, flag Flag, moveList *[]Move) {
 	for to := PopLSB(&bitboard); to != INVALID_POSITION; to = PopLSB(&bitboard) {
-		*moveList = append(*moveList, NewMove(to-Position(moveDir), to, flag))
+		*moveList = append(*moveList, newMove(to-Position(moveDir), to, flag))
 	}
 }
 
 // Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
-func (board *Board) InCheck() bool {
+func (board *Board) isCheck() bool {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
 	currentState := board.GetTopState()
 

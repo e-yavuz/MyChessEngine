@@ -155,16 +155,17 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			}
 		}
 		if score > zugzwangScore {
+			// Zugzwang score helps us find the best possible move, even in a position where the best move is to not move
 			zugzwangScore = score
 			bestZugzwangMove = move
 		}
 	}
 
-	if bestMoveThisPath == NULL_MOVE {
+	if bestMoveThisPath == NULL_MOVE { // No good moves found, need to find "best" bad option
 		bestMoveThisPath = bestZugzwangMove
 		if plyFromRoot == 0 {
-			bestMoveThisIteration = bestMoveThisPath // Choose best of bad options
-			bestEvalThisIteration = zugzwangScore    // Choose best of bad options
+			bestMoveThisIteration = bestMoveThisPath
+			bestEvalThisIteration = zugzwangScore
 		}
 	}
 
@@ -221,8 +222,8 @@ func extendSearch(board *Board, move Move, numExtensions byte) byte {
 		return 1
 	}
 
-	pieceType := board.PieceInfoArr[GetTargetPosition(move)].pieceTYPE
-	moveRank := (GetTargetPosition(move) & 0b111000) >> 3
+	pieceType := board.PieceInfoArr[getTargetPosition(move)].pieceTYPE
+	moveRank := (getTargetPosition(move) & 0b111000) >> 3
 
 	if pieceType == PAWN && (moveRank == 1 || moveRank == 6) { // Pawn on verge of promotion, also interesting
 		return 1
@@ -259,7 +260,7 @@ func (board *Board) moveordering(inQSearch bool, plyFromRoot byte, moveList []Mo
 
 		switch GetFlag(moveList[i]) {
 		case captureFlag:
-			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
+			takenPiece = board.PieceInfoArr[getTargetPosition(moveList[i])].pieceTYPE
 		case epCaptureFlag:
 			takenPiece = PAWN
 		case knightPromotionFlag, bishopPromotionFlag, rookPromotionFlag, queenPromotionFlag, knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag, queenPromoCaptureFlag:
@@ -269,7 +270,7 @@ func (board *Board) moveordering(inQSearch bool, plyFromRoot byte, moveList []Mo
 			continue
 		}
 
-		switch board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE { // Aggressor
+		switch board.PieceInfoArr[getStartingPosition(moveList[i])].pieceTYPE { // Aggressor
 		case PAWN:
 			moveList[i].priority += -1
 		case KNIGHT:
@@ -303,6 +304,14 @@ func (board *Board) moveordering(inQSearch bool, plyFromRoot byte, moveList []Mo
 	})
 }
 
+// updatePV updates the principal variation (PV) based on the current board state.
+// It takes two parameters: plyFromRoot and depth.
+// - plyFromRoot represents the number of plies (half-moves) from the root of the search tree.
+// - depth represents the maximum depth of the search.
+// The function updates the PV by making moves on the board until the specified depth is reached.
+// It uses the transposition table (ttMove) to determine the best move at each ply.
+// If the best move is a null move or an invalid move, the function stops updating the PV.
+// Finally, it restores the board to its original state by undoing the moves made during the update.
 func (board *Board) updatePV(plyFromRoot, depth byte) {
 	for i := byte(0); i < plyFromRoot; i++ {
 		board.MakeMove(Move{enc: PV[i], priority: 0})

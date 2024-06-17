@@ -22,11 +22,11 @@ const (
 
 type BitBoard = uint64
 
-func PlaceOnBitBoard(bitboard *BitBoard, position Position) {
+func placeOnBitBoard(bitboard *BitBoard, position Position) {
 	*bitboard |= 1 << position
 }
 
-func RemoveFromBitBoard(bitboard *BitBoard, position Position) {
+func removeFromBitBoard(bitboard *BitBoard, position Position) {
 	*bitboard &= ^(uint64(1) << position)
 }
 

@@ -85,7 +85,7 @@ func (board *Board) GetTopState() *StateInfo {
 	return board.stateInfoArr[len(board.stateInfoArr)-1]
 }
 
-func (board *Board) PushNewState(newState *StateInfo) {
+func (board *Board) pushNewState(newState *StateInfo) {
 	board.stateInfoArr = append(board.stateInfoArr, newState)
 }
 
@@ -217,7 +217,7 @@ func (board *Board) placeFENonBoard(r rune, position Position) {
 		thisPiece.isWhite = true
 		thisPiece.pieceTYPE = KING
 	}
-	PlaceOnBitBoard(thisPiece.thisBitBoard, position)
+	placeOnBitBoard(thisPiece.thisBitBoard, position)
 	board.PieceInfoArr[position] = thisPiece
 }
 
@@ -351,8 +351,8 @@ func (board *Board) updateZobristHash() {
 		currState.ZobristKey ^= zobristEnPassantArr[currState.EnPassantPosition%8]
 	}
 
-	from := GetStartingPosition(currState.PrecedentMove)
-	to := GetTargetPosition(currState.PrecedentMove)
+	from := getStartingPosition(currState.PrecedentMove)
+	to := getTargetPosition(currState.PrecedentMove)
 	flag := GetFlag(currState.PrecedentMove)
 	pieceType := board.PieceInfoArr[to].pieceTYPE
 	var color int
