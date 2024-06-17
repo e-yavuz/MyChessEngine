@@ -234,6 +234,19 @@ func (board *Board) TryMoveUCI(move string) (Move, bool) {
 		}
 	}
 	return NULL_MOVE, false
+}
+
+// Valid Move
+func (board *Board) validMove(move Move) bool {
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
+
+	for _, possibleMove := range moveList {
+		if possibleMove.enc == move.enc {
+			return true
+		}
+	}
+	return false
 
 }
 
@@ -490,10 +503,10 @@ func MoveToString(move Move) string {
 	return fmt.Sprintf("%s%s%s", PositionToSquare(GetStartingPosition(move)), PositionToSquare(GetTargetPosition(move)), promoSuffix)
 }
 
-func compareMove(a, b Move) bool {
-	// Idea is that if the move is a promotion, it is automatically valued over a non-promotion
-	if (GetFlag(a)|GetFlag(b))&0b1000 != 0 {
-		return a.enc > b.enc
-	}
-	return a.priority > b.priority
+func EncToString(enc uint16) string {
+	return fmt.Sprintf("%s%s", PositionToSquare(Position(enc&0x3F)), PositionToSquare(Position((enc&0xFC0)>>6)))
+}
+
+func compareMove(a, b Move) int {
+	return int(a.priority - b.priority)
 }

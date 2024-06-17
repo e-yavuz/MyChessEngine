@@ -1,7 +1,9 @@
 package chessengine
 
 import (
-	"sort"
+	"cmp"
+	"fmt"
+	"slices"
 )
 
 const (
@@ -9,23 +11,45 @@ const (
 	MIN_VALUE           = -2147483648
 	MAX_VALUE           = 2147483648
 	MAX_EXTENSION_DEPTH = 8
-	MAX_DEPTH           = 64
+	MAX_DEPTH           = 128
 )
 
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration int
 var BestEval int
+var DebugMode = false
+var PV [MAX_DEPTH]uint16
 
 func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
+	DebugCollisions = 0
+	DebugNewEntries = 0
+	PV = [MAX_DEPTH]uint16{}
 
-	for {
+	for depth < MAX_DEPTH {
 		bestMoveThisIteration = NULL_MOVE
 		bestEvalThisIteration = MIN_VALUE
 		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, cancelChannel)
 
-		if bestMoveThisIteration != NULL_MOVE {
+		if bestMoveThisIteration.enc != NULL_MOVE.enc {
+			PV[0] = bestMoveThisIteration.enc
+			board.updatePV(1, depth)
+			if DebugMode {
+				moveChainString := "[ "
+				for i := 0; i < int(depth) && PV[i] != NULL_MOVE.enc; i++ {
+					moveChainString += EncToString(PV[i]) + " "
+				}
+				moveChainString += "]"
+				fmt.Println(moveChainString)
+				moveChainString = "[ "
+				for i := 0; i < int(depth) && PV[i] != NULL_MOVE.enc; i++ {
+					moveChainString += fmt.Sprintf("%d ", PV[i])
+				}
+				moveChainString += "]"
+				fmt.Println(moveChainString)
+			}
+
 			depth++
 			bestMove = bestMoveThisIteration
 			BestEval = bestEvalThisIteration
@@ -37,6 +61,8 @@ func (board *Board) StartSearch(cancelChannel chan int) Move {
 		default:
 		}
 	}
+
+	return bestMove
 }
 
 // search performs an alpha-beta pruning of minimax search on the chess board up to the specified depth.
@@ -81,8 +107,9 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		return eval
 	}
 
-	moveList := make([]Move, 0, MAX_MOVE_COUNT+1)
-	moveList = getAllMoves(board, plyFromRoot, moveList)
+	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+	moveList = board.GenerateMoves(ALL, moveList)
+	board.moveordering(false, plyFromRoot, moveList)
 
 	if len(moveList) == 0 {
 		if board.InCheck() {
@@ -162,10 +189,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelCh
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
 	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
-	board.moveordering(captureMoveList)
-	sort.Slice(captureMoveList, func(i, j int) bool {
-		return compareMove(captureMoveList[i], captureMoveList[j])
-	})
+	board.moveordering(true, 0, captureMoveList)
 
 	for _, move := range captureMoveList {
 		board.MakeMove(move)
@@ -181,30 +205,6 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelCh
 	}
 
 	return alpha
-}
-
-/*
-Returns a list of all possible moves for the current board state.
-The list is sorted such that the best move is first.
-*/
-func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
-	if bestMove != NULL_MOVE && plyFromRoot == 0 {
-		moveList = append(moveList, bestMove)
-	}
-	moveList = board.GenerateMoves(ALL, moveList)
-	board.moveordering(moveList)
-
-	if bestMove != NULL_MOVE && plyFromRoot == 0 {
-		sort.Slice(moveList[1:], func(i, j int) bool {
-			return compareMove(moveList[i], moveList[j])
-		})
-	} else {
-		sort.Slice(moveList, func(i, j int) bool {
-			return compareMove(moveList[i], moveList[j])
-		})
-	}
-
-	return moveList
 }
 
 /*
@@ -249,8 +249,12 @@ For example, a very promising move, when available, is a move where one player m
 the opponent’s queen with their own pawn and this move is thus given the highest priority
 by the MVV-LVA heuristic.
 */
-func (board *Board) moveordering(moveList []Move) {
+func (board *Board) moveordering(inQSearch bool, plyFromRoot byte, moveList []Move) {
 	for i := range moveList {
+		if !inQSearch && moveList[i].enc == PV[plyFromRoot] {
+			moveList[i].priority = 127
+			continue
+		}
 		var takenPiece int
 
 		switch GetFlag(moveList[i]) {
@@ -258,6 +262,9 @@ func (board *Board) moveordering(moveList []Move) {
 			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
 		case epCaptureFlag:
 			takenPiece = PAWN
+		case knightPromotionFlag, bishopPromotionFlag, rookPromotionFlag, queenPromotionFlag, knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag, queenPromoCaptureFlag:
+			moveList[i].priority = 100
+			continue
 		default:
 			continue
 		}
@@ -289,5 +296,26 @@ func (board *Board) moveordering(moveList []Move) {
 		case QUEEN:
 			moveList[i].priority += 90
 		}
+	}
+
+	slices.SortFunc(moveList, func(a, b Move) int {
+		return cmp.Compare(b.priority, a.priority)
+	})
+}
+
+func (board *Board) updatePV(plyFromRoot, depth byte) {
+	for i := byte(0); i < plyFromRoot; i++ {
+		board.MakeMove(Move{enc: PV[i], priority: 0})
+	}
+	for ; plyFromRoot < depth; plyFromRoot++ {
+		ttMove := GetEntry(board.GetTopState().ZobristKey).best
+		if ttMove.enc == NULL_MOVE.enc || !board.validMove(ttMove) {
+			break
+		}
+		PV[plyFromRoot] = ttMove.enc
+		board.MakeMove(ttMove)
+	}
+	for ; plyFromRoot > 0; plyFromRoot-- {
+		board.UnMakeMove()
 	}
 }
