@@ -13,7 +13,8 @@ const (
 )
 
 var bestMoveThisIteration, bestMove Move
-var bestEvalThisIteration, bestEval int
+var bestEvalThisIteration int
+var BestEval int
 
 func (board *Board) StartSearch(cancelChannel chan int) Move {
 	var depth byte = 1
@@ -27,7 +28,7 @@ func (board *Board) StartSearch(cancelChannel chan int) Move {
 		if bestMoveThisIteration != NULL_MOVE {
 			depth++
 			bestMove = bestMoveThisIteration
-			bestEval = bestEvalThisIteration
+			BestEval = bestEvalThisIteration
 		}
 
 		select {
@@ -176,6 +177,7 @@ func getAllMoves(board *Board, plyFromRoot byte, moveList []Move) []Move {
 		moveList = append(moveList, bestMove)
 	}
 	moveList = board.GenerateMoves(ALL, moveList)
+	board.moveordering(moveList)
 
 	if bestMove != NULL_MOVE && plyFromRoot == 0 {
 		sort.Slice(moveList[1:], func(i, j int) bool {

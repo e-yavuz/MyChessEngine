@@ -195,19 +195,15 @@ func commandGo(text string) (engine.Move, error) {
 		close(cancelChannel)
 	}()
 
-	var move engine.Move
+	move := gameBoard.StartSearch(cancelChannel)
 
 	if uciDebug {
-		newMove, eval, _ := gameBoard.StartSearchDebug(cancelChannel)
-		move = newMove
 		sign := "+"
-		if eval < 0 {
+		if engine.BestEval < 0 {
 			sign = ""
 		}
-		fmt.Printf("Evaluation: %s%0.2f\n", sign, float32(eval)/100)
+		fmt.Printf("Evaluation: %s%0.2f\n", sign, float32(engine.BestEval)/100)
 		fmt.Printf("TT occupancy: %0.2f%%, Collisions: %d, NewEntries: %d\n", 100*float32(engine.DebugNewEntries)/float32(engine.TableCapacity), engine.DebugCollisions, engine.DebugNewEntries)
-	} else {
-		move = gameBoard.StartSearch(cancelChannel)
 	}
 
 	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
