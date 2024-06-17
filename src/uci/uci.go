@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v6b (improved move ordering)"
+	name = "ChessEngineEmre v6b (Zugzwang fix + TT Clear at ucinewgame)"
 )
 
 var options Options = Options{HashSize: 16, Time_ms: 100, UseBook: true}
@@ -58,7 +58,7 @@ func readCommand(reader *bufio.Reader) (bool, error) {
 		_, err := commandGo(text)
 		return true, err
 	} else if strings.HasPrefix(text, "ucinewgame") {
-		gameBoard = nil
+		commandUCINewGame()
 		return true, nil
 	} else if strings.HasPrefix(text, "debug") {
 		return true, commandDebug(text)
@@ -122,6 +122,11 @@ func commandUCI() error {
 func commandIsReady() error {
 	fmt.Println("readyok")
 	return nil
+}
+
+func commandUCINewGame() {
+	gameBoard = nil
+	engine.TTClear()
 }
 
 // commandPosition is the response to the position command
@@ -216,8 +221,10 @@ func commandDebug(text string) error {
 	text = strings.TrimPrefix(text, "debug ")
 	if text == "on" {
 		uciDebug = true
+		engine.DebugMode = true
 	} else if text == "off" {
 		uciDebug = false
+		engine.DebugMode = false
 	} else {
 		return fmt.Errorf("invalid Debug suffix, wanted: [on/off], got: %s", text)
 	}
@@ -255,6 +262,8 @@ func commandTestGameMakeMove(text string) error {
 
 	if !ok {
 		return fmt.Errorf("invalid move: " + moveUCI)
+	} else {
+		gameBoard.MakeMove(move)
 	}
 	result := engine.GetGameState(gameBoard)
 	if result != engine.InProgress {
@@ -271,8 +280,6 @@ func commandTestGameMakeMove(text string) error {
 			fmt.Printf("Game over by: Error")
 		}
 		return nil
-	} else {
-		gameBoard.MakeMove(move)
 	}
 
 	aimove, err := commandGo("go")

@@ -59,3 +59,10 @@ func recordHash(depth byte, val int, hashf byte, bestMove Move, key uint64) {
 func GetEntry(key uint64) tagHASHE {
 	return hash_table[key%TableCapacity]
 }
+
+func TTClear() {
+	hash_table = [TableCapacity]tagHASHE{}
+	DebugTableSize = 0
+	DebugCollisions = 0
+	DebugNewEntries = 0
+}

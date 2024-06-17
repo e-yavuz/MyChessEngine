@@ -94,6 +94,9 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 
 	hashF := hashfALPHA
 	bestMoveThisPath := NULL_MOVE
+	// zugzwang fix
+	zugzwangScore := MIN_VALUE
+	bestZugzwangMove := NULL_MOVE
 
 	for _, move := range moveList {
 		board.MakeMove(move)
@@ -123,6 +126,18 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 				bestMoveThisIteration = move  // Update the best move for this iteration
 				bestEvalThisIteration = score // Update the best evaluation score for this iteration
 			}
+		}
+		if score > zugzwangScore {
+			zugzwangScore = score
+			bestZugzwangMove = move
+		}
+	}
+
+	if bestMoveThisPath == NULL_MOVE {
+		bestMoveThisPath = bestZugzwangMove
+		if plyFromRoot == 0 {
+			bestMoveThisIteration = bestMoveThisPath // Choose best of bad options
+			bestEvalThisIteration = zugzwangScore    // Choose best of bad options
 		}
 	}
 
@@ -236,19 +251,18 @@ by the MVV-LVA heuristic.
 */
 func (board *Board) moveordering(moveList []Move) {
 	for i := range moveList {
-		movingPiece := board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE
-		moveFlag := GetFlag(moveList[i])
 		var takenPiece int
 
-		if moveFlag == captureFlag {
+		switch GetFlag(moveList[i]) {
+		case captureFlag:
 			takenPiece = board.PieceInfoArr[GetTargetPosition(moveList[i])].pieceTYPE
-		} else if moveFlag == epCaptureFlag {
+		case epCaptureFlag:
 			takenPiece = PAWN
-		} else {
+		default:
 			continue
 		}
 
-		switch movingPiece {
+		switch board.PieceInfoArr[GetStartingPosition(moveList[i])].pieceTYPE { // Aggressor
 		case PAWN:
 			moveList[i].priority += -1
 		case KNIGHT:
@@ -263,7 +277,7 @@ func (board *Board) moveordering(moveList []Move) {
 			moveList[i].priority += -10
 		}
 
-		switch takenPiece {
+		switch takenPiece { // Victim
 		case PAWN:
 			moveList[i].priority += 10
 		case KNIGHT:

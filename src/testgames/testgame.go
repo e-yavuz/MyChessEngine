@@ -62,61 +62,60 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 	// Start the engines
 	err = e1.Start()
 	if err != nil {
-		fmt.Println("Error starting engine1:", err)
+		fmt.Println("Error starting engine 1:", err)
 		return -1, -1, -1, -1
 	}
 	err = e2.Start()
 	if err != nil {
-		fmt.Println("Error starting engine2:", err)
+		fmt.Println("Error starting engine 2:", err)
 		return -1, -1, -1, -1
 	}
 
 	// Wait for the engines to start
 	_, err = stdin1.Write([]byte("uci\n"))
 	if err != nil {
-		fmt.Println("Error writing to engine1:", err)
+		fmt.Println("Error writing to engine 1:", err)
 		return -1, -1, -1, -1
 	}
 
 	n, err := stdout1.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading from engine1:", err)
+		fmt.Println("Error reading from engine 1:", err)
 		return -1, -1, -1, -1
 	}
-	fmt.Println("Engine1:", string(buf[:n]))
+	fmt.Println("Engine 1:", string(buf[:n]))
 
 	_, err = stdin2.Write([]byte("uci\n"))
 	if err != nil {
-		fmt.Println("Error writing to engine2:", err)
+		fmt.Println("Error writing to engine 2:", err)
 		return -1, -1, -1, -1
 	}
 
 	n, err = stdout2.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading from engine2:", err)
+		fmt.Println("Error reading from engine 2:", err)
 		return -1, -1, -1, -1
 	}
 	fmt.Println("Engine2:", string(buf[:n]))
 
-	// Start the game
-	_, err = stdin1.Write([]byte("ucinewgame\n"))
-	if err != nil {
-		fmt.Println("Error writing to engine1:", err)
-		return -1, -1, -1, -1
-	}
-	_, err = stdin2.Write([]byte("ucinewgame\n"))
-	if err != nil {
-		fmt.Println("Error writing to engine2:", err)
-		return -1, -1, -1, -1
-	}
-
 	// e1 is white
 	for _, fen := range fenBoards {
+		// Start the game
+		_, err = stdin1.Write([]byte("ucinewgame\n"))
+		if err != nil {
+			fmt.Println("Error writing to engine 1:", err)
+			return -1, -1, -1, -1
+		}
+		_, err = stdin2.Write([]byte("ucinewgame\n"))
+		if err != nil {
+			fmt.Println("Error writing to engine 2:", err)
+			return -1, -1, -1, -1
+		}
 		gameBoard = engine.InitFENBoard(fen)
 		moveList = []string{}
 		for {
 			// Make a turn for engine1
-			result := makeTurn(stdin1, stdout1, fen, &moveList)
+			result := makeTurn(1, stdin1, stdout1, fen, &moveList)
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
@@ -134,7 +133,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			}
 
 			// Make a turn for engine2
-			result = makeTurn(stdin2, stdout2, fen, &moveList)
+			result = makeTurn(2, stdin2, stdout2, fen, &moveList)
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
@@ -152,12 +151,24 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			}
 		}
 
+		// Start the game
+		_, err = stdin1.Write([]byte("ucinewgame\n"))
+		if err != nil {
+			fmt.Println("Error writing to engine 1:", err)
+			return -1, -1, -1, -1
+		}
+		_, err = stdin2.Write([]byte("ucinewgame\n"))
+		if err != nil {
+			fmt.Println("Error writing to engine 2:", err)
+			return -1, -1, -1, -1
+		}
+
 		// same board, but switched sides
 		gameBoard = engine.InitFENBoard(fen)
 		moveList = []string{}
 		for {
 			// Make a turn for engine2
-			result := makeTurn(stdin2, stdout2, fen, &moveList)
+			result := makeTurn(2, stdin2, stdout2, fen, &moveList)
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
@@ -175,7 +186,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			}
 
 			// Make a turn for engine1
-			result = makeTurn(stdin1, stdout1, fen, &moveList)
+			result = makeTurn(1, stdin1, stdout1, fen, &moveList)
 			if result != engine.InProgress {
 				if engine.IsDraw(result) {
 					draws++
@@ -198,13 +209,13 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 }
 
 // makeTurn makes a turn for the engine and gets the gameresult after the turn
-func makeTurn(stdin io.WriteCloser, stdout io.ReadCloser, fenString string, moveList *[]string) byte {
+func makeTurn(engineID int, stdin io.WriteCloser, stdout io.ReadCloser, fenString string, moveList *[]string) byte {
 	var err error
 
 	// Check the engine isready
 	_, err = stdin.Write([]byte("isready\n"))
 	if err != nil {
-		fmt.Println("Error writing to engine:", err)
+		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
@@ -212,7 +223,7 @@ func makeTurn(stdin io.WriteCloser, stdout io.ReadCloser, fenString string, move
 	buf := make([]byte, 1024)
 	_, err = stdout.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading from engine:", err)
+		fmt.Printf("Error reading from engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
@@ -228,21 +239,21 @@ func makeTurn(stdin io.WriteCloser, stdout io.ReadCloser, fenString string, move
 	// Write the current state of the board to the engine
 	_, err = stdin.Write([]byte(positionString))
 	if err != nil {
-		fmt.Println("Error writing to engine:", err)
+		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
 	// Get the move from the engine
 	_, err = stdin.Write([]byte("go\n"))
 	if err != nil {
-		fmt.Println("Error writing to engine:", err)
+		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
 	// Read the output
 	n, err := stdout.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading from engine:", err)
+		fmt.Printf("Error reading from engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 	bestmove := string(buf[9 : n-1])
@@ -250,7 +261,7 @@ func makeTurn(stdin io.WriteCloser, stdout io.ReadCloser, fenString string, move
 	// Strip "bestmove " from the beginning of the string
 	gameMove, ok := gameBoard.TryMoveUCI(bestmove)
 	if !ok {
-		fmt.Println("Invalid move from engine:", bestmove)
+		fmt.Printf("Invalid move from engine %d: %s\n", engineID, bestmove)
 		return engine.Error
 	} else {
 		gameBoard.MakeMove(gameMove)
