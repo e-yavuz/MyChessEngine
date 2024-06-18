@@ -298,6 +298,7 @@ func (board *Board) MakeMove(move Move) {
 
 	if move == NULL_MOVE {
 		board.pushNewState(st)
+		st.inCheck = board.isCheck()
 		return
 	}
 
