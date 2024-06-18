@@ -99,6 +99,10 @@ func (board *Board) PopTopState() *StateInfo {
 	return retval
 }
 
+func (board *Board) InCheck() bool {
+	return board.stateInfoArr[len(board.stateInfoArr)-1].inCheck
+}
+
 // Starts with FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 func InitStartBoard() *Board {
 	return InitFENBoard(StartingFen)
@@ -158,6 +162,7 @@ func InitFENBoard(FEN string) *Board {
 	retval.GetTopState().HalfMoveClock, _ = strconv.Atoi(drawCount)
 	retval.GetTopState().TurnCounter, _ = strconv.Atoi(turnCount)
 	retval.GetTopState().useOpeningBook = true
+	retval.GetTopState().inCheck = retval.isCheck()
 
 	retval.computeZobristHash()
 

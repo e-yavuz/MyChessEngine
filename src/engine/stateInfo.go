@@ -12,6 +12,8 @@ type StateInfo struct {
 	ZobristKey     uint64
 	useOpeningBook bool
 
+	inCheck bool
+
 	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
 	Capture              *PieceInfo
 	PrePromotionBitBoard *BitBoard
@@ -36,7 +38,8 @@ func (si *StateInfo) Equal(other *StateInfo) bool {
 		si.CastleState == other.CastleState &&
 		si.ZobristKey == other.ZobristKey &&
 		si.HalfMoveClock == other.HalfMoveClock &&
-		si.TurnCounter == other.TurnCounter
+		si.TurnCounter == other.TurnCounter &&
+		si.inCheck == other.inCheck
 
 	return captureCompare && promotionCompare && valueCompare
 }
