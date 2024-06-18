@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"time"
 )
 
 const (
@@ -14,45 +15,48 @@ const (
 	MAX_DEPTH           = 128
 )
 
+type searchInfo struct {
+	nodeCount uint64
+	startTime time.Time
+	depth     byte
+	score     int
+	seldepth  byte
+	multipv   byte
+}
+
+var latestSearchInfo searchInfo
+
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration int
-var BestEval int
+
 var DebugMode = false
 var PV [MAX_DEPTH]uint16
 
-func (board *Board) StartSearch(cancelChannel chan int) Move {
+func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
 	DebugCollisions = 0
 	DebugNewEntries = 0
 	PV = [MAX_DEPTH]uint16{}
+	latestSearchInfo = searchInfo{startTime: startTime, multipv: 1}
 
 	for depth < MAX_DEPTH {
 		bestMoveThisIteration = NULL_MOVE
 		bestEvalThisIteration = MIN_VALUE
+
+		latestSearchInfo.depth = depth
+		latestSearchInfo.nodeCount = 0
+		latestSearchInfo.seldepth = 0
+
 		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, cancelChannel)
 
 		if bestMoveThisIteration.enc != NULL_MOVE.enc {
 			PV[0] = bestMoveThisIteration.enc
 			board.updatePV(1, depth)
-			if DebugMode {
-				moveChainString := "[ "
-				for i := 0; i < int(depth) && PV[i] != NULL_MOVE.enc; i++ {
-					moveChainString += EncToString(PV[i]) + " "
-				}
-				moveChainString += "]"
-				fmt.Println(moveChainString)
-				moveChainString = "[ "
-				for i := 0; i < int(depth) && PV[i] != NULL_MOVE.enc; i++ {
-					moveChainString += fmt.Sprintf("%d ", PV[i])
-				}
-				moveChainString += "]"
-				fmt.Println(moveChainString)
-			}
-
 			depth++
 			bestMove = bestMoveThisIteration
-			BestEval = bestEvalThisIteration
+			latestSearchInfo.score = bestEvalThisIteration
+			fmt.Println(engineInfoString())
 		}
 
 		select {
@@ -82,6 +86,8 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	default:
 	}
 
+	latestSearchInfo.nodeCount++
+
 	if plyFromRoot > 0 {
 		// Fifty move rule
 		if board.GetTopState().HalfMoveClock >= 100 {
@@ -103,7 +109,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	}
 
 	if depth == 0 {
-		eval := board.quiescenceSearch(alpha, beta, plyFromRoot+1, cancelChannel)
+		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, cancelChannel)
 		return eval
 	}
 
@@ -121,9 +127,6 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 
 	hashF := hashfALPHA
 	bestMoveThisPath := NULL_MOVE
-	// zugzwang fix
-	zugzwangScore := MIN_VALUE
-	bestZugzwangMove := NULL_MOVE
 
 	for _, move := range moveList {
 		board.MakeMove(move)
@@ -154,19 +157,6 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 				bestEvalThisIteration = score // Update the best evaluation score for this iteration
 			}
 		}
-		if score > zugzwangScore {
-			// Zugzwang score helps us find the best possible move, even in a position where the best move is to not move
-			zugzwangScore = score
-			bestZugzwangMove = move
-		}
-	}
-
-	if bestMoveThisPath == NULL_MOVE { // No good moves found, need to find "best" bad option
-		bestMoveThisPath = bestZugzwangMove
-		if plyFromRoot == 0 {
-			bestMoveThisIteration = bestMoveThisPath
-			bestEvalThisIteration = zugzwangScore
-		}
 	}
 
 	recordHash(depth, alpha, hashF, bestMoveThisPath, board.GetTopState().ZobristKey) // Record the best move for this position
@@ -180,12 +170,15 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelCh
 	default:
 	}
 
+	latestSearchInfo.nodeCount++
+
 	eval := board.Evaluate()
 	if eval >= beta {
 		return beta
 	}
 	if eval > alpha {
 		alpha = eval
+		latestSearchInfo.seldepth = max(plyFromRoot, latestSearchInfo.seldepth)
 	}
 
 	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
@@ -327,4 +320,29 @@ func (board *Board) updatePV(plyFromRoot, depth byte) {
 	for ; plyFromRoot > 0; plyFromRoot-- {
 		board.UnMakeMove()
 	}
+}
+
+/*
+	Outputs the engine info from a given search depth following the format:
+
+info depth <depth> seldepth <maxdepth searched> multipv <principal variations> score cp <score> nodes <nodecount> nps <nodes / time> time <time taken in ms> pv <pv>
+*/
+func engineInfoString() string {
+	elapsedTime := time.Since(latestSearchInfo.startTime)
+	nps := int64(float64(latestSearchInfo.nodeCount) / elapsedTime.Seconds())
+	// Convert PV chain up to depth to a single string seperated by " "
+	pvString := ""
+	for i := byte(0); i < latestSearchInfo.depth; i++ {
+		if PV[i] == NULL_MOVE.enc {
+			break
+		}
+		pvString += MoveToString(Move{enc: PV[i], priority: 0}) + " "
+	}
+	// Strip surrounding whitespace from PV string
+	pvString = pvString[:len(pvString)-1]
+
+	return fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d time %d pv %s",
+		latestSearchInfo.depth, latestSearchInfo.seldepth, latestSearchInfo.multipv,
+		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, elapsedTime.Milliseconds(), pvString)
+
 }
