@@ -257,18 +257,17 @@ func commandGo(text string) (engine.Move, error) {
 		case "movetime":
 			timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
 			remainingMoves = 1
-			break
 		case "movestogo":
 			remainingMoves, _ = strconv.ParseInt(textArr[i+1], 10, 64)
 		}
 	}
 
-	timeInMilliseconds /= remainingMoves
+	timeInMilliseconds = int64(float64(timeInMilliseconds) / float64(remainingMoves))
 
 	if timeInMilliseconds != -1 {
 		// Start a timer to close channel and end search at the end
 		go func() {
-			time.Sleep(time.Duration(timeInMilliseconds) * time.Millisecond)
+			time.Sleep(time.Duration(timeInMilliseconds-1) * time.Millisecond)
 			close(searchCancelChannel)
 		}()
 	}
