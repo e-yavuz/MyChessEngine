@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v8nmp (Null Move Pruning)"
+	name = "ChessEngineEmre v7b (FULL UCI SUPPORT)"
 )
 
 var options Options = Options{HashSize: 16, OwnBook: false}
