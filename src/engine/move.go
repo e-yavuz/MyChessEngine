@@ -273,17 +273,10 @@ func (board *Board) validMove(move Move) bool {
 
 // Invariant: Assumes move is legal
 func (board *Board) MakeMove(move Move) {
-	if move == NULL_MOVE {
-		return
-	}
 
 	from := getStartingPosition(move)
 	to := getTargetPosition(move)
 
-	piece := board.PieceInfoArr[from]
-	if piece == nil {
-		panic(fmt.Sprintf("%s begins on empty square BestMove: %s", MoveToString(move), MoveToString(bestMove)))
-	}
 	currentState := board.GetTopState()
 
 	// Copy over from currentState to a new state
@@ -296,14 +289,24 @@ func (board *Board) MakeMove(move Move) {
 		useOpeningBook:    currentState.useOpeningBook,
 		EnPassantPosition: INVALID_POSITION,
 		PrecedentMove:     move,
+		inCheck:           currentState.inCheck,
 	}
 
 	if !currentState.IsWhiteTurn {
 		st.TurnCounter += 1
-		if piece.thisBitBoard == &board.B.Pawn {
-			st.HalfMoveClock = 0
-		}
-	} else if piece.thisBitBoard == &board.W.Pawn {
+	}
+
+	if move == NULL_MOVE {
+		board.pushNewState(st)
+		return
+	}
+
+	piece := board.PieceInfoArr[from]
+	if piece == nil {
+		panic(fmt.Sprintf("%s begins on empty square BestMove: %s", MoveToString(move), MoveToString(bestMove)))
+	}
+
+	if piece.thisBitBoard == &board.B.Pawn || piece.thisBitBoard == &board.W.Pawn {
 		st.HalfMoveClock = 0
 	}
 
@@ -434,7 +437,7 @@ func (board *Board) UnMakeMove() {
 	topState := board.PopTopState()
 	move := topState.PrecedentMove
 	if move == NULL_MOVE {
-		panic(fmt.Sprintf("No precedent move recorded for current state:\n%v", topState))
+		return
 	}
 
 	board.RepetitionPositionHistory[topState.ZobristKey] -= 1
