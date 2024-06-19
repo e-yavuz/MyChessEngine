@@ -519,7 +519,7 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 	}
 
 	if friendlyPieces.King == 0 || enemyPieces.King == 0 {
-		return []Move{}
+		return moveList
 	}
 
 	pinnedPieces, pinnedPiecesBitBoard, checkingPieces := generateCheck(board)

@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+var perftMoveListPool [32][MAX_MOVE_COUNT]Move
+
+func init() {
+}
+
 func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[string]uint64) {
 	if ply == 0 {
 		return 1, nil
@@ -14,8 +19,8 @@ func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[
 		rootNodes = make(map[string]uint64)
 	}
 
-	moveList := make([]Move, 0, MAX_MOVE_COUNT)
-	moveList = board.GenerateMoves(ALL, moveList)
+	// Reset this entry in the moveList pool back to having 0 entries
+	moveList := board.GenerateMoves(ALL, perftMoveListPool[ply][:0])
 	if ply == 1 && !rootLevel {
 		return uint64(len(moveList)), nil
 	}

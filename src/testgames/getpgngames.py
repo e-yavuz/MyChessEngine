@@ -55,6 +55,6 @@ with chess.engine.SimpleEngine.popen_uci("./stockfish") as engine:
             positions.append(thisGamePGN)
 
 # Write to file
-with open("pgn_output.txt", "w") as file:
+with open("pgn_output.pgn", "w") as file:
     for string in positions:
         file.write(string + "\n\n")

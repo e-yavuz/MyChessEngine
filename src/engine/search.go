@@ -12,7 +12,8 @@ const (
 	MIN_VALUE           = -2147483648
 	MAX_VALUE           = 2147483648
 	MAX_EXTENSION_DEPTH = 8
-	MAX_DEPTH           = 128
+	MAX_QSEARCH_DEPTH   = 8
+	MAX_SEARCH_DEPTH    = 32
 )
 
 type searchInfo struct {
@@ -30,17 +31,20 @@ var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration int
 
 var DebugMode = false
-var PV [MAX_DEPTH]uint16
+var PV [MAX_SEARCH_DEPTH]uint16
+
+var searchMovePool [MAX_SEARCH_DEPTH][MAX_MOVE_COUNT]Move
+var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
 
 func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
 	DebugCollisions = 0
 	DebugNewEntries = 0
-	PV = [MAX_DEPTH]uint16{}
+	PV = [MAX_SEARCH_DEPTH]uint16{}
 	latestSearchInfo = searchInfo{startTime: startTime, multipv: 1}
 
-	for depth < MAX_DEPTH {
+	for depth < MAX_SEARCH_DEPTH {
 		bestMoveThisIteration = NULL_MOVE
 		bestEvalThisIteration = MIN_VALUE
 
@@ -109,12 +113,11 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	}
 
 	if depth == 0 {
-		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, cancelChannel)
+		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, 0, cancelChannel)
 		return eval
 	}
 
-	moveList := make([]Move, 0, MAX_MOVE_COUNT)
-	moveList = board.GenerateMoves(ALL, moveList)
+	moveList := board.GenerateMoves(ALL, searchMovePool[plyFromRoot][:0])
 	board.moveordering(false, plyFromRoot, moveList)
 
 	if len(moveList) == 0 {
@@ -163,7 +166,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	return alpha
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelChannel chan int) int {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch byte, cancelChannel chan int) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return 0
@@ -178,16 +181,19 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot byte, cancelCh
 	}
 	if eval > alpha {
 		alpha = eval
-		latestSearchInfo.seldepth = max(plyFromRoot, latestSearchInfo.seldepth)
+		latestSearchInfo.seldepth = max(plyFromSearch, latestSearchInfo.seldepth)
 	}
 
-	captureMoveList := make([]Move, 0, MAX_CAPTURE_COUNT)
-	captureMoveList = board.GenerateMoves(CAPTURE, captureMoveList)
+	if plyFromSearch >= MAX_QSEARCH_DEPTH {
+		return alpha
+	}
+
+	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:])
 	board.moveordering(true, 0, captureMoveList)
 
 	for _, move := range captureMoveList {
 		board.MakeMove(move)
-		eval := -board.quiescenceSearch(-beta, -alpha, plyFromRoot+1, cancelChannel)
+		eval := -board.quiescenceSearch(-beta, -alpha, plyFromRoot+1, plyFromSearch+1, cancelChannel)
 		board.UnMakeMove()
 
 		if eval >= beta {
