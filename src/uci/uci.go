@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v7b (FULL UCI SUPPORT)"
+	name = "ChessEngineEmre v7d (Pooled moveList Arrays)"
 )
 
 var options Options = Options{HashSize: 16, OwnBook: false}
@@ -241,7 +241,8 @@ func commandGo(text string) (engine.Move, error) {
 	searchCancelChannel = make(chan int)
 
 	var timeInMilliseconds int64 = -1
-	var remainingMoves int64 = 1
+	var remainingMoves int64 = -1
+	var fixedMoveTime bool = false
 
 	// Get the time to search for
 	text = strings.TrimPrefix(text, "go ")
@@ -251,20 +252,26 @@ func commandGo(text string) (engine.Move, error) {
 	for i := 0; i < len(textArr); i++ {
 		switch textArr[i] {
 		case "wtime":
-			timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
+			if gameBoard.GetTopState().IsWhiteTurn {
+				timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
+			}
 		case "btime":
-			timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
+			if !gameBoard.GetTopState().IsWhiteTurn {
+				timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
+			}
 		case "movetime":
 			timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
-			remainingMoves = 1
+			fixedMoveTime = true
 		case "movestogo":
 			remainingMoves, _ = strconv.ParseInt(textArr[i+1], 10, 64)
 		}
 	}
 
-	timeInMilliseconds = int64(float64(timeInMilliseconds) / float64(remainingMoves))
-
 	if timeInMilliseconds != -1 {
+		if !fixedMoveTime && remainingMoves == -1 {
+			remainingMoves = int64(30 + (30*engine.GetGamePhase(gameBoard))/24)
+		}
+		timeInMilliseconds = int64(float64(timeInMilliseconds) / float64(remainingMoves+1))
 		// Start a timer to close channel and end search at the end
 		go func() {
 			time.Sleep(time.Duration(timeInMilliseconds-1) * time.Millisecond)
