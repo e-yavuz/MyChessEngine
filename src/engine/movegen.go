@@ -323,7 +323,7 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
-			(getIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == getIntermediaryRay(from, from-4) &&
+			(getIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == 0 &&
 			(getIntermediaryRay(from, from-3)&targetBitBoard) == getIntermediaryRay(from, from-3) {
 			*moveList = append(*moveList, newMove(from, from-2, queenCastleFlag))
 		}

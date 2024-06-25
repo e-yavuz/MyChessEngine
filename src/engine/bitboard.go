@@ -1,6 +1,9 @@
 package chessengine
 
-import "fmt"
+import (
+	"fmt"
+	"math/bits"
+)
 
 // Bitmask for all possible movement for each piece on a 8x8 board
 var (
@@ -17,7 +20,7 @@ var (
 )
 
 const (
-	INVALID_POSITION Position = 0xFF
+	INVALID_POSITION Position = 0x40
 )
 
 type BitBoard = uint64
@@ -31,16 +34,8 @@ func removeFromBitBoard(bitboard *BitBoard, position Position) {
 }
 
 func PopLSB(bitboard *BitBoard) Position {
-	if *bitboard == 0 {
-		return INVALID_POSITION
-	}
-	var index Position = 0
-	var mask BitBoard = 1
-	for (*bitboard & mask) == 0 {
-		mask <<= 1
-		index++
-	}
-	*bitboard &= ^mask
+	index := Position(bits.TrailingZeros64(*bitboard))
+	*bitboard &= *bitboard - 1
 	return index
 }
 
