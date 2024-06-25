@@ -181,14 +181,14 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	}
 	if eval > alpha {
 		alpha = eval
-		latestSearchInfo.seldepth = max(plyFromSearch, latestSearchInfo.seldepth)
+		latestSearchInfo.seldepth = max(plyFromRoot-latestSearchInfo.depth, latestSearchInfo.seldepth)
 	}
 
 	if plyFromSearch >= MAX_QSEARCH_DEPTH {
 		return alpha
 	}
 
-	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:])
+	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:0])
 	board.moveordering(true, 0, captureMoveList)
 
 	for _, move := range captureMoveList {
@@ -348,7 +348,7 @@ func engineInfoString() string {
 	pvString = pvString[:len(pvString)-1]
 
 	return fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d time %d pv %s",
-		latestSearchInfo.depth, latestSearchInfo.seldepth, latestSearchInfo.multipv,
+		latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
 		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, elapsedTime.Milliseconds(), pvString)
 
 }
