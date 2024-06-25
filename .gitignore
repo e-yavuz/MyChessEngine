@@ -8,4 +8,6 @@ test
 Null-Move-Test-Positions.txt
 src/testgames/.venv/
 temp/
-.prof
+*.prof
+*.pgn
+*.test
