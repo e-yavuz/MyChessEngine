@@ -17,7 +17,7 @@ const (
 	name = "ChessEngineEmre v7d (Pooled moveList Arrays)"
 )
 
-var options Options = Options{HashSize: 16, OwnBook: false}
+var options Options = Options{HashSize: 16, OwnBook: true}
 var uciDebug bool = false
 var gameBoard *engine.Board
 var searchCancelChannel chan int
@@ -81,6 +81,8 @@ func readCommand(reader *bufio.Reader) (bool, error) {
 		return true, commandTestGameUndoMove()
 	} else if strings.HasPrefix(text, "eval") {
 		return true, commandEval(text)
+	} else if strings.HasPrefix(text, "board") {
+		return true, commandBoard()
 	} else if text == "help" {
 		return true, commandHelp()
 	} else if text == "quit" {
@@ -240,8 +242,8 @@ func commandGo(text string) (engine.Move, error) {
 	// Reset the search cancel channel to open
 	searchCancelChannel = make(chan int)
 
-	var timeInMilliseconds int64 = -1
-	var remainingMoves int64 = -1
+	var timeInMilliseconds int64 = 0
+	var remainingMoves int64 = 0
 	var fixedMoveTime bool = false
 
 	// Get the time to search for
@@ -267,11 +269,13 @@ func commandGo(text string) (engine.Move, error) {
 		}
 	}
 
-	if timeInMilliseconds != -1 {
-		if !fixedMoveTime && remainingMoves == -1 {
+	if timeInMilliseconds != 0 {
+		if !fixedMoveTime && remainingMoves == 0 {
 			remainingMoves = int64(30 + (30*engine.GetGamePhase(gameBoard))/24)
+		} else {
+			remainingMoves++ // From 0 -> 1 for movetime, and movestogo -> movestogo+1 to avoid running out of time
 		}
-		timeInMilliseconds = int64(float64(timeInMilliseconds) / float64(remainingMoves+1))
+		timeInMilliseconds = int64(float64(timeInMilliseconds) / float64(remainingMoves))
 		// Start a timer to close channel and end search at the end
 		go func() {
 			time.Sleep(time.Duration(timeInMilliseconds-1) * time.Millisecond)
@@ -439,6 +443,14 @@ func commandEval(text string) error {
 		sign = ""
 	}
 	fmt.Printf("Evaluation: %s%0.2f\n", sign, float32(gameBoard.Evaluate())/100)
+	return nil
+}
+
+func commandBoard() error {
+	if gameBoard == nil {
+		return fmt.Errorf("invalid board")
+	}
+	fmt.Println(gameBoard.DisplayBoard())
 	return nil
 }
 
