@@ -5,3 +5,7 @@ src/testgames/lichess_db_standard_rated_2014-10.pgn
 src/testgames/output.txt
 test
 *.out
+Null-Move-Test-Positions.txt
+src/testgames/.venv/
+temp/
+.prof
