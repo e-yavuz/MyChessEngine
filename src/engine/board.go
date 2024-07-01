@@ -159,8 +159,14 @@ func InitFENBoard(FEN string) *Board {
 	}
 
 	retval.GetTopState().IsWhiteTurn = turnColor == "w"
-	retval.GetTopState().HalfMoveClock, _ = strconv.Atoi(drawCount)
-	retval.GetTopState().TurnCounter, _ = strconv.Atoi(turnCount)
+	{
+		temp, _ := strconv.Atoi(drawCount)
+		retval.GetTopState().HalfMoveClock = byte(temp)
+	}
+	{
+		temp, _ := strconv.Atoi(turnCount)
+		retval.GetTopState().TurnCounter = byte(temp)
+	}
 	retval.GetTopState().useOpeningBook = true
 	retval.GetTopState().inCheck = retval.isCheck()
 

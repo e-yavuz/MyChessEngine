@@ -1,22 +1,21 @@
 package chessengine
 
 type StateInfo struct {
-	EnPassantPosition Position
-	IsWhiteTurn       bool
-
-	CastleState byte
-
-	HalfMoveClock int
-	TurnCounter   int
-
-	ZobristKey     uint64
-	useOpeningBook bool
-
-	inCheck bool
-
-	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
+	ZobristKey           uint64
 	Capture              *PieceInfo
 	PrePromotionBitBoard *BitBoard
+	PrecedentMove        Move // The move that created the current state, used by UnMakeMove()
+
+	EnPassantPosition Position
+	CastleState       byte
+
+	HalfMoveClock byte
+	TurnCounter   byte
+
+	useOpeningBook bool
+
+	inCheck     bool
+	IsWhiteTurn bool
 }
 
 func (si *StateInfo) Equal(other *StateInfo) bool {
