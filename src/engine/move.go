@@ -260,6 +260,9 @@ func (board *Board) TryMoveUCI(move string) (Move, bool) {
 // Generates all possible moves for the current board state
 // and returns [true/false] if the move is in the list
 func (board *Board) validMove(move Move) bool {
+	if move == NULL_MOVE {
+		return false
+	}
 	moveList := make([]Move, 0, MAX_MOVE_COUNT)
 	moveList = board.GenerateMoves(ALL, moveList)
 
@@ -532,6 +535,6 @@ func EncToString(enc uint16) string {
 	return fmt.Sprintf("%s%s", positionToSquare(Position(enc&0x3F)), positionToSquare(Position((enc&0xFC0)>>6)))
 }
 
-func compareMove(a, b Move) int {
-	return int(a.priority - b.priority)
-}
+// func compareMove(a, b Move) int {
+// 	return int(a.priority - b.priority)
+// }

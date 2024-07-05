@@ -402,3 +402,7 @@ func (board *Board) updateZobristHash() {
 	// XOR the piece on the target square
 	board.GetTopState().ZobristKey ^= zobristPieceArr[pieceType][color][to]
 }
+
+func (board *Board) moveCount() uint16 {
+	return uint16(len(board.stateInfoArr))
+}

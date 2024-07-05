@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 var gameBoard *engine.Board
@@ -282,7 +283,7 @@ func makeTurn(engineID int, stdin io.WriteCloser, stdout, stderr io.ReadCloser, 
 	}
 
 	// Get the move from the engine
-	_, err = stdin.Write([]byte("go\n"))
+	_, err = stdin.Write([]byte("go movetime 100\n"))
 	if err != nil {
 		if err == io.EOF {
 			handleEOFError(stderr)
@@ -291,16 +292,23 @@ func makeTurn(engineID int, stdin io.WriteCloser, stdout, stderr io.ReadCloser, 
 		return engine.Error
 	}
 
+	var bestmove string
 	// Read the output
-	n, err := stdout.Read(buf)
-	if err != nil {
-		if err == io.EOF {
-			handleEOFError(stderr)
+	for {
+		n, err := stdout.Read(buf)
+		if err != nil {
+			if err == io.EOF {
+				handleEOFError(stderr)
+			}
+			fmt.Printf("Error reading from engine %d: %s\n", engineID, err)
+			return engine.Error
 		}
-		fmt.Printf("Error reading from engine %d: %s\n", engineID, err)
-		return engine.Error
+		bestMoveIndex := strings.Index(string(buf), "bestmove ")
+		if bestMoveIndex != -1 {
+			bestmove = string(buf[bestMoveIndex+9 : n-1])
+			break
+		}
 	}
-	bestmove := string(buf[9 : n-1])
 
 	// Strip "bestmove " from the beginning of the string
 	gameMove, ok := gameBoard.TryMoveUCI(bestmove)

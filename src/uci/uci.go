@@ -14,18 +14,17 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v7d (Pooled moveList Arrays)"
+	name = "ChessEngineEmre v7f (Dual TT, seems to work?)"
 )
 
-var options Options = Options{HashSize: 16, OwnBook: true}
+var options Options = Options{Hash: 16, OwnBook: false}
 var uciDebug bool = false
 var gameBoard *engine.Board
 var searchCancelChannel chan int
 
 type Options struct {
-	OwnBook  bool  // Set engine [on/off] to pull from openingbook.txt
-	HashSize int   // in MB, default 16
-	Time_ms  int64 // Allowed time for the engine to think in milliseconds
+	OwnBook bool   // Set engine [true/false] to pull from openingbook.txt, default false
+	Hash    uint64 // in MB, default 16, min 1, max 1024
 }
 
 // UCI is the main function to start the UCI loop
@@ -95,12 +94,13 @@ func readCommand(reader *bufio.Reader) (bool, error) {
 // commandOptions sets either the hash size or the time for the engine to think
 func commandOptions(text string) error {
 	text = strings.TrimPrefix(text, "setoption ")
-	if strings.HasPrefix(text, "name Hash") {
-		text = strings.TrimPrefix(text, "name Hash ")
+	if strings.HasPrefix(text, "name Hash value ") {
+		text = strings.TrimPrefix(text, "name Hash value ")
 		hashSize, _ := strconv.Atoi(text)
-		options.HashSize = hashSize
-	} else if strings.HasPrefix(text, "name OwnBook") {
-		text = strings.TrimPrefix(text, "name OwnBook ")
+		options.Hash = uint64(hashSize)
+		engine.TTReset(gameBoard, uint64(options.Hash))
+	} else if strings.HasPrefix(text, "name OwnBook value ") {
+		text = strings.TrimPrefix(text, "name OwnBook value ")
 		switch text {
 		case "true":
 			options.OwnBook = true
@@ -109,6 +109,8 @@ func commandOptions(text string) error {
 		default:
 			return fmt.Errorf("unvalid OwnBook option, wanted: [true/false], got: %s", text)
 		}
+	} else if text == "name Clear Hash" {
+		engine.TTReset(gameBoard, uint64(options.Hash))
 	} else {
 		return fmt.Errorf("invalid option: %s", text)
 	}
@@ -119,6 +121,8 @@ func commandOptions(text string) error {
 func commandUCI() error {
 	fmt.Println("id name", name)
 	fmt.Println("id author Emre")
+	fmt.Println()
+	optionList()
 	fmt.Println("uciok")
 	return nil
 }
@@ -131,7 +135,7 @@ func commandIsReady() error {
 
 func commandUCINewGame() {
 	gameBoard = nil
-	engine.TTClear()
+	engine.TTReset(gameBoard, uint64(options.Hash))
 }
 
 // commandPosition is the response to the position command
@@ -284,10 +288,6 @@ func commandGo(text string) (engine.Move, error) {
 	}
 
 	move := gameBoard.StartSearch(time.Now(), searchCancelChannel)
-
-	if uciDebug {
-		fmt.Printf("TT occupancy: %0.2f%%, Collisions: %d, NewEntries: %d\n", 100*float32(engine.DebugTableSize)/float32(engine.TableCapacity), engine.DebugCollisions, engine.DebugNewEntries)
-	}
 
 	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
 
@@ -462,8 +462,8 @@ func commandHelp() error {
 	fmt.Println("\tucinewgame - Clear the board and reset the game")
 	fmt.Println("\tdebug [on/off] - Enable or disable debug mode")
 	fmt.Println("\tsetoption")
-	fmt.Println("\t\tname Hash <hash_size> - Set the hash table size")
-	fmt.Println("\t\tname Time <time_ms> - Set the allowed thinking time")
+	fmt.Println("\t\tname Hash <hash_size> - Set the hash table size in MB (default 16, min 1, max 1024)")
+	fmt.Println("\t\tname Clear Hash - Clears the Transposition Hash Table")
 	fmt.Println("\t\tname OwnBook [on/off] - Sets if engine can use saved book moves")
 	fmt.Println("\tpossiblemoves - Display all possible moves from the current position (debug mode only)")
 	fmt.Println("\tmove <move_uci> - Make a custom move, followed by the engine's move, on the current board (debug mode only)")
@@ -473,4 +473,10 @@ func commandHelp() error {
 	fmt.Println("\thelp - Display this help message")
 	fmt.Println("\tquit - Exit the program")
 	return nil
+}
+
+func optionList() {
+	fmt.Println("option name Hash type spin default 16 min 1 max 1024")
+	fmt.Println("option name Clear Hash type button")
+	fmt.Println("option name OwnBook type check default false")
 }

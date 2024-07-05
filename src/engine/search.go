@@ -39,10 +39,9 @@ var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
 func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
-	DebugKeyCollisions = 0
-	DebugIndexCollisions = 0
-	DebugDroppedEntries = 0
-	DebugNewEntries = 0
+	if DebugMode {
+		TTDebugReset(board)
+	}
 	PV = [MAX_SEARCH_DEPTH]Move{}
 	latestSearchInfo = searchInfo{startTime: startTime, multipv: 1}
 
@@ -63,6 +62,9 @@ func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Mov
 			bestMove = bestMoveThisIteration
 			latestSearchInfo.score = bestEvalThisIteration
 			fmt.Println(engineInfoString())
+			if DebugMode {
+				fmt.Print(TTDebugInfo())
+			}
 		}
 
 		select {
@@ -326,12 +328,12 @@ func (board *Board) updatePV(plyFromRoot, depth byte) {
 		board.MakeMove(PV[i])
 	}
 	for ; plyFromRoot < depth; plyFromRoot++ {
-		_, nodeType, ttMove := probeHash(0, 0, 0, 0, board.GetTopState().ZobristKey)
-		if nodeType != PVnode || !board.validMove(ttMove) {
+		pvMove := getPVMove(board.GetTopState().ZobristKey)
+		if !board.validMove(pvMove) {
 			break
 		}
-		PV[plyFromRoot] = ttMove
-		board.MakeMove(ttMove)
+		PV[plyFromRoot] = pvMove
+		board.MakeMove(pvMove)
 	}
 	for ; plyFromRoot > 0; plyFromRoot-- {
 		board.UnMakeMove()
@@ -346,6 +348,7 @@ info depth <depth> seldepth <maxdepth searched> multipv <principal variations> s
 func engineInfoString() string {
 	elapsedTime := time.Since(latestSearchInfo.startTime)
 	nps := int64(float64(latestSearchInfo.nodeCount) / elapsedTime.Seconds())
+	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
 	// Convert PV chain up to depth to a single string seperated by " "
 	pvString := ""
 	for i := byte(0); i < latestSearchInfo.depth; i++ {
@@ -357,8 +360,8 @@ func engineInfoString() string {
 	// Strip surrounding whitespace from PV string
 	pvString = pvString[:len(pvString)-1]
 
-	return fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d time %d pv %s",
+	return fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
 		latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
-		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, elapsedTime.Milliseconds(), pvString)
+		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, hashFill, elapsedTime.Milliseconds(), pvString)
 
 }

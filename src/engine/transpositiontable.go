@@ -1,6 +1,8 @@
 package chessengine
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	PVnode byte = iota
@@ -10,6 +12,7 @@ const (
 )
 
 // TODO work on TT optimization, seems to function identical to single entry max-depth TT
+// july 2: switch to new version on v7f seems to break it???
 
 type ttSubEntry struct { // 15 bytes
 	zobristKey uint64 // 8 bytes
@@ -101,20 +104,27 @@ func getReplaceEntry(depth byte, turn byte, zobristKey uint64) *ttSubEntry {
 }
 
 const ttEntry_ARcount = 3 // 2 always replace entries and one max depth
-const sizeTagHASHE = ttEntry_ARcount * 16
-const TableCapacity = (1024 * 1024 / sizeTagHASHE) * 64 // 64 MB table with 45 byte entries
+const sizeTagHASHE = ttEntry_ARcount * 24
+
+var TableCapacity uint64 = (1024 * 1024 / sizeTagHASHE) * 16 // 16 MB table with 72 byte entries
 var DebugTableSize = 0
 var DebugKeyCollisions = 0
 var DebugIndexCollisions = 0
 var DebugNewEntries = 0
-var DebugDroppedEntries = 0
+var DebugTableMinimumMoveCount uint16 = 0 // Marks the point at which an entry will never be usable, thus updating it increases Table size!
+var DebugTableHits = 0
+var DebugTableProbes = 0
 
-var hash_table [TableCapacity]ttEntry
+var hash_table []ttEntry
 
-func probeHash(depth, turn byte, alpha, beta int, zobristKey uint64) (int, byte, Move) {
-	subEntry, entryNodeType, entryMove := getBestSubEntry(depth, turn, zobristKey)
+func init() {
+	TTReset(nil, 16)
+}
+
+	DebugTableProbes++
 
 	if subEntry != NULLttSubEntry {
+		DebugTableHits++
 		nodeType := getNodeType(subEntry.ttInfo)
 		if nodeType == PVnode {
 			return subEntry.score, PVnode, subEntry.move
@@ -139,19 +149,35 @@ func recordHash(depth, nodeType, turn byte, score int, bestMove Move, zobristKey
 	replacedSubEntry.turn = turn
 }
 
-func GetEntry(zobristKey uint64) ttEntry {
-	return hash_table[zobristKey%TableCapacity]
+func getPVMove(zobristKey uint64) Move {
+	subEntry := getBestSubEntry(0, 0, zobristKey)
+	if getNodeType(subEntry.ttInfo) == PVnode {
+		return subEntry.move
+	}
+	return NULL_MOVE
+
 }
 
-func TTClear() {
-	hash_table = [TableCapacity]ttEntry{}
+func TTReset(board *Board, sizeMB uint64) {
+	TableCapacity = (1024 * 1024 / sizeTagHASHE) * sizeMB
+	hash_table = make([]ttEntry, TableCapacity)
 	DebugTableSize = 0
+	TTDebugReset(board)
+}
+
+func TTDebugReset(board *Board) {
 	DebugKeyCollisions = 0
 	DebugIndexCollisions = 0
-	DebugDroppedEntries = 0
 	DebugNewEntries = 0
+	DebugTableHits = 0
+	DebugTableProbes = 0
+	if board == nil {
+		DebugTableMinimumMoveCount = 0
+	} else {
+		DebugTableMinimumMoveCount = board.moveCount() - 1
+	}
 }
 
 func TTDebugInfo() string {
-	return fmt.Sprintf("TT occupancy: %0.2f%%\n\tNewEntries: %d(%f%%)\n\tKey Collisions: %d(%f%%)\n\tIndex Collisions: %d(%f%%)\n", 100*float32(DebugTableSize)/float32(TableCapacity), DebugNewEntries, float32(DebugNewEntries)/float32(DebugTableSize), DebugKeyCollisions, float32(DebugKeyCollisions)/float32(DebugNewEntries), DebugIndexCollisions, float32(DebugIndexCollisions)/float32(DebugNewEntries))
+	return fmt.Sprintf("TT occupancy: %0.2f%%\n\tNew Entries: %d(%0.2f%%)\n\tKey Collisions: %d(%0.2f%%)\n\tIndex Collisions: %d(%0.2f%%)\n\tHit Rate: %0.2f%%\n", 100*float32(DebugTableSize)/float32(TableCapacity), DebugNewEntries, 100*float32(DebugNewEntries)/float32(ttEntry_ARcount*DebugTableSize), DebugKeyCollisions, 100*float32(DebugKeyCollisions)/float32(DebugNewEntries), DebugIndexCollisions, 100*float32(DebugIndexCollisions)/float32(DebugNewEntries), 100*float32(DebugTableHits)/float32(DebugTableProbes))
 }
