@@ -23,6 +23,10 @@ type searchInfo struct {
 	score     int
 	seldepth  byte
 	multipv   byte
+	qNodes    uint64
+	pvNodes   uint64
+	allNodes  uint64
+	cutNodes  uint64
 }
 
 var latestSearchInfo searchInfo
@@ -119,6 +123,14 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			bestMoveThisIteration = probeMove
 			bestEvalThisIteration = probeScore
 		}
+		switch probeNodeType {
+		case ALLnode:
+			latestSearchInfo.allNodes++
+		case CUTnode:
+			latestSearchInfo.cutNodes++
+		case PVnode:
+			latestSearchInfo.pvNodes++
+		}
 		return probeScore
 	}
 
@@ -158,6 +170,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
 			recordHash(depth, CUTnode, board.GetTopState().TurnCounter, beta, NULL_MOVE, board.GetTopState().ZobristKey)
+			latestSearchInfo.cutNodes++
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
@@ -171,6 +184,11 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		}
 	}
 
+	if nodeType == ALLnode {
+		latestSearchInfo.allNodes++
+	} else {
+		latestSearchInfo.pvNodes++
+	}
 	recordHash(depth, nodeType, board.GetTopState().TurnCounter, alpha, bestMoveThisPath, board.GetTopState().ZobristKey) // Record the best move for this position
 	return alpha
 }
@@ -183,6 +201,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	}
 
 	latestSearchInfo.nodeCount++
+	latestSearchInfo.qNodes++
 
 	eval := board.Evaluate()
 	if eval >= beta {
@@ -345,7 +364,7 @@ func (board *Board) updatePV(plyFromRoot, depth byte) {
 
 info depth <depth> seldepth <maxdepth searched> multipv <principal variations> score cp <score> nodes <nodecount> nps <nodes / time> time <time taken in ms> pv <pv>
 */
-func engineInfoString() string {
+func engineInfoString() (retval string) {
 	elapsedTime := time.Since(latestSearchInfo.startTime)
 	nps := int64(float64(latestSearchInfo.nodeCount) / elapsedTime.Seconds())
 	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
@@ -360,8 +379,13 @@ func engineInfoString() string {
 	// Strip surrounding whitespace from PV string
 	pvString = pvString[:len(pvString)-1]
 
-	return fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
+	retval += fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
 		latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
 		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, hashFill, elapsedTime.Milliseconds(), pvString)
 
+	if DebugMode {
+		retval += fmt.Sprintf("\nDebug Info:\n\tpvNodes: %d, allNodes: %d, cutNodes: %d, qNodes: %d\n", latestSearchInfo.pvNodes, latestSearchInfo.allNodes, latestSearchInfo.cutNodes, latestSearchInfo.qNodes)
+	}
+
+	return retval
 }
