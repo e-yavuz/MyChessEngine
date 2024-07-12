@@ -307,7 +307,7 @@ func (board *Board) MakeMove(move Move) {
 
 	piece := board.PieceInfoArr[from]
 	if piece == nil {
-		panic(fmt.Sprintf("%s begins on empty square BestMove: %s", MoveToString(move), MoveToString(bestMove)))
+		panic(fmt.Sprintf("%s begins on empty square BestMove: %s", MoveToString(move), MoveToString(pv[0])))
 	}
 
 	if piece.thisBitBoard == &board.B.Pawn || piece.thisBitBoard == &board.W.Pawn {

@@ -16,6 +16,7 @@ const (
 	MAX_SEARCH_DEPTH       = 63
 	DELTAPRUNE_MARGIN      = 200
 	LATE_GAME_PHASE_CUTOFF = 4
+	triangleTableSize      = ((MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH)*(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) + (MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)) / 2
 )
 
 type searchInfo struct {
@@ -33,39 +34,38 @@ type searchInfo struct {
 
 var latestSearchInfo searchInfo
 
-var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration int
 var currentSearchTurn byte
 
 var DebugMode = false
-var PV [MAX_SEARCH_DEPTH]Move
+var savedPV [MAX_SEARCH_DEPTH]Move
 
 var searchMovePool [MAX_SEARCH_DEPTH][MAX_MOVE_COUNT]Move
 var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
 
+var pv [triangleTableSize]Move
+var pvPtr int
+
 func (board *Board) StartSearch(startTime time.Time, cancelChannel chan struct{}) Move {
 	var depth byte = 1
-	bestMove = NULL_MOVE
+	pvPtr = 0
+	savedPV = [MAX_SEARCH_DEPTH]Move{}
 	if DebugMode {
 		TTDebugReset(board)
 	}
-	PV = [MAX_SEARCH_DEPTH]Move{}
 
 	currentSearchTurn = board.GetTopState().TurnCounter
 
-	for depth < MAX_SEARCH_DEPTH {
-		bestMoveThisIteration = NULL_MOVE
+	for depth <= MAX_SEARCH_DEPTH {
 		bestEvalThisIteration = MIN_VALUE
 
 		latestSearchInfo = searchInfo{startTime: startTime, multipv: 1, depth: depth}
 
 		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, cancelChannel)
 
-		if bestMoveThisIteration.enc != NULL_MOVE.enc {
-			PV[0] = bestMoveThisIteration
-			board.updatePV(1, depth)
+		if pv[0] != NULL_MOVE {
+			copy(savedPV[:depth], pv[:depth])
 			depth++
-			bestMove = bestMoveThisIteration
 			latestSearchInfo.score = bestEvalThisIteration
 
 			fmt.Println(engineInfoString())
@@ -76,12 +76,12 @@ func (board *Board) StartSearch(startTime time.Time, cancelChannel chan struct{}
 
 		select {
 		case <-cancelChannel:
-			return bestMove
+			return savedPV[0]
 		default:
 		}
 	}
 
-	return bestMove
+	return savedPV[0]
 }
 
 // search performs an alpha-beta pruning of minimax search on the chess board up to the specified depth.
@@ -120,31 +120,18 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		return eval
 	}
 
-	latestSearchInfo.nodeCount++
-
 	probeScore, probeNodeType, probeMove := probeHash(depth, currentSearchTurn, alpha, beta, board.GetTopState().ZobristKey)
 	if probeScore != MIN_VALUE {
 		if plyFromRoot == 0 && probeNodeType == PVnode {
-			bestMoveThisIteration = probeMove
 			bestEvalThisIteration = probeScore
-		}
-		switch probeNodeType {
-		case ALLnode:
-			latestSearchInfo.allNodes++
-		case CUTnode:
-			latestSearchInfo.cutNodes++
-		case PVnode:
-			latestSearchInfo.pvNodes++
 		}
 		return probeScore
 	}
 
+	latestSearchInfo.nodeCount++
+
 	moveList := board.GenerateMoves(ALL, searchMovePool[plyFromRoot][:0])
-	if probeNodeType == PVnode {
-		board.moveordering(false, probeMove, moveList)
-	} else {
-		board.moveordering(true, NULL_MOVE, moveList)
-	}
+	board.moveordering(false, savedPV[plyFromRoot], probeMove, moveList)
 
 	if len(moveList) == 0 {
 		if board.InCheck() {
@@ -155,9 +142,9 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	}
 
 	nodeType := ALLnode
-	bestMoveThisPath := NULL_MOVE
-
-	for _, move := range moveList {
+	my_pvPtr := pvPtr
+	pv[pvPtr] = NULL_MOVE // initialize empty PV
+	pvPtr += int(depth)
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
@@ -176,14 +163,22 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			// We record this information in the transposition table.
 			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
 			latestSearchInfo.cutNodes++
+			pvPtr = my_pvPtr
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
-			bestMoveThisPath = move
+			child_pvPtr := pvPtr
+			pvPtr = my_pvPtr
+			pv[pvPtr] = move
+			pvPtr++
+			for pv[child_pvPtr] != NULL_MOVE { // copy child PV behind it
+				pv[pvPtr] = pv[child_pvPtr]
+				pvPtr++
+				child_pvPtr++
+			}
 			nodeType = PVnode
 			alpha = score
 			if plyFromRoot == 0 {
-				bestMoveThisIteration = move  // Update the best move for this iteration
 				bestEvalThisIteration = score // Update the best evaluation score for this iteration
 			}
 		}
@@ -194,7 +189,9 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	} else {
 		latestSearchInfo.pvNodes++
 	}
-	recordHash(depth, nodeType, currentSearchTurn, alpha, bestMoveThisPath, board.GetTopState().ZobristKey) // Record the best move for this position
+
+	pvPtr = my_pvPtr
+	recordHash(depth, nodeType, currentSearchTurn, alpha, pv[my_pvPtr], board.GetTopState().ZobristKey) // Record the best move for this position
 	return alpha
 }
 
@@ -236,7 +233,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	}
 
 	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:0])
-	board.moveordering(true, NULL_MOVE, captureMoveList)
+	board.moveordering(true, NULL_MOVE, NULL_MOVE, captureMoveList)
 
 	for _, move := range captureMoveList {
 		// Delta pruning cut
@@ -301,11 +298,17 @@ For example, a very promising move, when available, is a move where one player m
 the opponent’s queen with their own pawn and this move is thus given the highest priority
 by the MVV-LVA heuristic.
 */
-func (board *Board) moveordering(usePVMove bool, PVMove Move, moveList []Move) {
+func (board *Board) moveordering(usePV_TT bool, PVMove Move, TTMove Move, moveList []Move) {
 	for i := range moveList {
-		if !usePVMove && moveList[i].enc == PVMove.enc {
+		if !usePV_TT {
+			if moveList[i].enc == PVMove.enc {
 			moveList[i].priority = 127
 			continue
+			}
+			if moveList[i].enc == TTMove.enc {
+				moveList[i].priority = 126
+				continue
+			}
 		}
 		var takenPiece int
 
@@ -375,31 +378,6 @@ func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
 		gamePhase)
 }
 
-// updatePV updates the principal variation (PV) based on the current board state.
-// It takes two parameters: plyFromRoot and depth.
-// - plyFromRoot represents the number of plies (half-moves) from the root of the search tree.
-// - depth represents the maximum depth of the search.
-// The function updates the PV by making moves on the board until the specified depth is reached.
-// It uses the transposition table (ttMove) to determine the best move at each ply.
-// If the best move is a null move or an invalid move, the function stops updating the PV.
-// Finally, it restores the board to its original state by undoing the moves made during the update.
-func (board *Board) updatePV(plyFromRoot, depth byte) {
-	for i := byte(0); i < plyFromRoot; i++ {
-		board.MakeMove(PV[i])
-	}
-	for ; plyFromRoot < depth; plyFromRoot++ {
-		pvMove := getPVMove(board.GetTopState().ZobristKey)
-		if !board.validMove(pvMove) {
-			break
-		}
-		PV[plyFromRoot] = pvMove
-		board.MakeMove(pvMove)
-	}
-	for ; plyFromRoot > 0; plyFromRoot-- {
-		board.UnMakeMove()
-	}
-}
-
 /*
 	Outputs the engine info from a given search depth following the format:
 
@@ -412,10 +390,10 @@ func engineInfoString() (retval string) {
 	// Convert PV chain up to depth to a single string seperated by " "
 	pvString := ""
 	for i := byte(0); i < latestSearchInfo.depth; i++ {
-		if PV[i] == NULL_MOVE {
+		if savedPV[i] == NULL_MOVE {
 			break
 		}
-		pvString += MoveToString(PV[i]) + " "
+		pvString += MoveToString(savedPV[i]) + " "
 	}
 	// Strip surrounding whitespace from PV string
 	pvString = pvString[:len(pvString)-1]
