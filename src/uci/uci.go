@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v7f (Dual TT, seems to work?)"
+	name = "ChessEngineEmre v8 (Delta Pruning)"
 )
 
-var options Options = Options{Hash: 16, OwnBook: false}
+var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
 var uciDebug bool = false
 var gameBoard *engine.Board
-var searchCancelChannel chan int
+var searchCancelChannel chan struct{} = make(chan struct{})
 
 type Options struct {
 	OwnBook bool   // Set engine [true/false] to pull from openingbook.txt, default false
@@ -32,6 +32,7 @@ func UCI() {
 	engine.InitMagicBitBoardTable("magic_rook", "magic_bishop")
 	engine.InitZobristTable()
 	engine.InitPeSTO()
+	close(searchCancelChannel)
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		ok, err := readCommand(reader)
@@ -47,11 +48,13 @@ func UCI() {
 
 func readCommand(reader *bufio.Reader) (bool, error) {
 	text, _ := reader.ReadString('\n')
+	// close(searchCancelChannel)
 	text = strings.TrimSpace(text)
 	if text == "uci" {
 		return true, commandUCI()
 	} else if text == "isready" {
-		return true, commandIsReady()
+		go commandIsReady()
+		return true, nil
 	} else if strings.HasPrefix(text, "position ") {
 		return true, commandPosition(text)
 	} else if strings.HasPrefix(text, "go") {
@@ -129,6 +132,7 @@ func commandUCI() error {
 
 // commandIsReady is the response to the isready command
 func commandIsReady() error {
+	<-searchCancelChannel
 	fmt.Println("readyok")
 	return nil
 }
@@ -244,7 +248,7 @@ func commandGo(text string) (engine.Move, error) {
 	}
 
 	// Reset the search cancel channel to open
-	searchCancelChannel = make(chan int)
+	searchCancelChannel = make(chan struct{})
 
 	var timeInMilliseconds int64 = 0
 	var remainingMoves int64 = 0
@@ -437,12 +441,12 @@ func commandEval(text string) error {
 		return fmt.Errorf("invalid board")
 	}
 	//TODOlow make eval search to provided depth and return evaluation fo search
-	eval := gameBoard.Evaluate()
+	eval, _, _ := gameBoard.Evaluate()
 	sign := "+"
 	if eval < 0 {
 		sign = ""
 	}
-	fmt.Printf("Evaluation: %s%0.2f\n", sign, float32(gameBoard.Evaluate())/100)
+	fmt.Printf("Evaluation: %s%0.2f\n", sign, float32(eval)/100)
 	return nil
 }
 
