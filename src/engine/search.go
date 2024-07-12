@@ -8,12 +8,14 @@ import (
 )
 
 const (
-	MATE_SCORE          = -65535
-	MIN_VALUE           = -2147483648
-	MAX_VALUE           = 2147483648
-	MAX_EXTENSION_DEPTH = 8
-	MAX_QSEARCH_DEPTH   = 8
-	MAX_SEARCH_DEPTH    = 63
+	MATE_SCORE             = -65535
+	MIN_VALUE              = -2147483648
+	MAX_VALUE              = 2147483648
+	MAX_EXTENSION_DEPTH    = 8
+	MAX_QSEARCH_DEPTH      = 8
+	MAX_SEARCH_DEPTH       = 63
+	DELTAPRUNE_MARGIN      = 200
+	LATE_GAME_PHASE_CUTOFF = 4
 )
 
 type searchInfo struct {
@@ -33,6 +35,7 @@ var latestSearchInfo searchInfo
 
 var bestMoveThisIteration, bestMove Move
 var bestEvalThisIteration int
+var currentSearchTurn byte
 
 var DebugMode = false
 var PV [MAX_SEARCH_DEPTH]Move
@@ -40,22 +43,21 @@ var PV [MAX_SEARCH_DEPTH]Move
 var searchMovePool [MAX_SEARCH_DEPTH][MAX_MOVE_COUNT]Move
 var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
 
-func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Move {
+func (board *Board) StartSearch(startTime time.Time, cancelChannel chan struct{}) Move {
 	var depth byte = 1
 	bestMove = NULL_MOVE
 	if DebugMode {
 		TTDebugReset(board)
 	}
 	PV = [MAX_SEARCH_DEPTH]Move{}
-	latestSearchInfo = searchInfo{startTime: startTime, multipv: 1}
+
+	currentSearchTurn = board.GetTopState().TurnCounter
 
 	for depth < MAX_SEARCH_DEPTH {
 		bestMoveThisIteration = NULL_MOVE
 		bestEvalThisIteration = MIN_VALUE
 
-		latestSearchInfo.depth = depth
-		latestSearchInfo.nodeCount = 0
-		latestSearchInfo.seldepth = 0
+		latestSearchInfo = searchInfo{startTime: startTime, multipv: 1, depth: depth}
 
 		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, cancelChannel)
 
@@ -65,6 +67,7 @@ func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Mov
 			depth++
 			bestMove = bestMoveThisIteration
 			latestSearchInfo.score = bestEvalThisIteration
+
 			fmt.Println(engineInfoString())
 			if DebugMode {
 				fmt.Print(TTDebugInfo())
@@ -90,7 +93,7 @@ func (board *Board) StartSearch(startTime time.Time, cancelChannel chan int) Mov
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensions byte, cancelChannel chan int) int {
+func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensions byte, cancelChannel chan struct{}) int {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -98,16 +101,16 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	default:
 	}
 
-	latestSearchInfo.nodeCount++
-
 	if plyFromRoot > 0 {
 		// Fifty move rule
 		if board.GetTopState().HalfMoveClock >= 100 {
+			latestSearchInfo.nodeCount++
 			return 0
 		}
 
 		// Threefold repetition
 		if board.RepetitionPositionHistory[board.GetTopState().ZobristKey] == 3 {
+			latestSearchInfo.nodeCount++
 			return 0
 		}
 	}
@@ -117,7 +120,9 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		return eval
 	}
 
-	probeScore, probeNodeType, probeMove := probeHash(depth, board.GetTopState().TurnCounter, alpha, beta, board.GetTopState().ZobristKey)
+	latestSearchInfo.nodeCount++
+
+	probeScore, probeNodeType, probeMove := probeHash(depth, currentSearchTurn, alpha, beta, board.GetTopState().ZobristKey)
 	if probeScore != MIN_VALUE {
 		if plyFromRoot == 0 && probeNodeType == PVnode {
 			bestMoveThisIteration = probeMove
@@ -169,7 +174,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 			// If the score is greater than or equal to beta,
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
-			recordHash(depth, CUTnode, board.GetTopState().TurnCounter, beta, NULL_MOVE, board.GetTopState().ZobristKey)
+			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
 			latestSearchInfo.cutNodes++
 			return beta
 		}
@@ -189,11 +194,11 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	} else {
 		latestSearchInfo.pvNodes++
 	}
-	recordHash(depth, nodeType, board.GetTopState().TurnCounter, alpha, bestMoveThisPath, board.GetTopState().ZobristKey) // Record the best move for this position
+	recordHash(depth, nodeType, currentSearchTurn, alpha, bestMoveThisPath, board.GetTopState().ZobristKey) // Record the best move for this position
 	return alpha
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch byte, cancelChannel chan int) int {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch byte, cancelChannel chan struct{}) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return 0
@@ -203,10 +208,24 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	latestSearchInfo.nodeCount++
 	latestSearchInfo.qNodes++
 
-	eval := board.Evaluate()
+	eval, mgPhase, egPhase := board.Evaluate()
 	if eval >= beta {
 		return beta
 	}
+
+	/*
+		Delta Pruning
+		https://www.chessprogramming.org/Delta_Pruning
+			a technique similar in concept to futility pruning,
+			only used in the quiescence search.
+
+			It works as follows:
+				before we make a capture, we test whether the captured piece value
+				plus some safety margin (typically around 200 centipawns) are enough
+				to raise alpha for the current node.
+	*/
+	deltaPrune := alpha - board.EvaluateMaterial(mgPhase, egPhase) - DELTAPRUNE_MARGIN
+
 	if eval > alpha {
 		alpha = eval
 		latestSearchInfo.seldepth = max(plyFromRoot-latestSearchInfo.depth, latestSearchInfo.seldepth)
@@ -220,6 +239,11 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	board.moveordering(true, NULL_MOVE, captureMoveList)
 
 	for _, move := range captureMoveList {
+		// Delta pruning cut
+		if mgPhase > LATE_GAME_PHASE_CUTOFF && getTargetPieceValue(board, move, egPhase) < deltaPrune {
+			continue
+		}
+
 		board.MakeMove(move)
 		eval := -board.quiescenceSearch(-beta, -alpha, plyFromRoot+1, plyFromSearch+1, cancelChannel)
 		board.UnMakeMove()
@@ -334,6 +358,23 @@ func (board *Board) moveordering(usePVMove bool, PVMove Move, moveList []Move) {
 	})
 }
 
+func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
+	targetPosition := getTargetPosition(move)
+
+	// En-passant fix
+	if GetFlag(move) == epCaptureFlag {
+		if board.GetTopState().IsWhiteTurn {
+			targetPosition -= 8
+		} else {
+			targetPosition += 8
+		}
+	}
+
+	return GetPieceValue(*board.PieceInfoArr[targetPosition],
+		targetPosition,
+		gamePhase)
+}
+
 // updatePV updates the principal variation (PV) based on the current board state.
 // It takes two parameters: plyFromRoot and depth.
 // - plyFromRoot represents the number of plies (half-moves) from the root of the search tree.
@@ -384,7 +425,7 @@ func engineInfoString() (retval string) {
 		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, hashFill, elapsedTime.Milliseconds(), pvString)
 
 	if DebugMode {
-		retval += fmt.Sprintf("\nDebug Info:\n\tpvNodes: %d, allNodes: %d, cutNodes: %d, qNodes: %d\n", latestSearchInfo.pvNodes, latestSearchInfo.allNodes, latestSearchInfo.cutNodes, latestSearchInfo.qNodes)
+		retval += fmt.Sprintf("\nDebug Info:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d(%0.2f%%)\n", latestSearchInfo.pvNodes, 100*float32(latestSearchInfo.pvNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.allNodes, 100*float32(latestSearchInfo.allNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.cutNodes, 100*float32(latestSearchInfo.cutNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.qNodes, 100*float32(latestSearchInfo.qNodes)/float32(latestSearchInfo.nodeCount))
 	}
 
 	return retval

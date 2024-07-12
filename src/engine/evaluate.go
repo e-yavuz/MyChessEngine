@@ -1,5 +1,7 @@
 package chessengine
 
+import "math/bits"
+
 const (
 	WHITE = 0
 	BLACK = 1
@@ -146,15 +148,42 @@ func InitPeSTO() {
 	}
 }
 
-func (board *Board) Evaluate() (retval int) {
+func (board *Board) Evaluate() (retval, mgPhase, egPhase int) {
 	/******************
 	1. Piece evaluation
 	*******************/
-	pieceVal, _, _ := peSTOTableEval(board)
+	pieceVal, mgPhase, egPhase := peSTOTableEval(board)
 
 	retval += pieceVal
 
-	return retval
+	return retval, mgPhase, egPhase
+}
+
+func (board *Board) EvaluateMaterial(mgPhase, egPhase int) int {
+	mgMaterialDifference := 0
+	egMaterialDifference := 0
+
+	mgMaterialDifference += mgValue[PAWN] * (bits.OnesCount64(board.W.Pawn) - bits.OnesCount64(board.B.Pawn))
+	egMaterialDifference += egValue[PAWN] * (bits.OnesCount64(board.W.Pawn) - bits.OnesCount64(board.B.Pawn))
+
+	mgMaterialDifference += mgValue[KNIGHT] * (bits.OnesCount64(board.W.Knight) - bits.OnesCount64(board.B.Knight))
+	egMaterialDifference += egValue[KNIGHT] * (bits.OnesCount64(board.W.Knight) - bits.OnesCount64(board.B.Knight))
+
+	mgMaterialDifference += mgValue[BISHOP] * (bits.OnesCount64(board.W.Bishop) - bits.OnesCount64(board.B.Bishop))
+	egMaterialDifference += egValue[BISHOP] * (bits.OnesCount64(board.W.Bishop) - bits.OnesCount64(board.B.Bishop))
+
+	mgMaterialDifference += mgValue[ROOK] * (bits.OnesCount64(board.W.Rook) - bits.OnesCount64(board.B.Rook))
+	egMaterialDifference += egValue[ROOK] * (bits.OnesCount64(board.W.Rook) - bits.OnesCount64(board.B.Rook))
+
+	mgMaterialDifference += mgValue[QUEEN] * (bits.OnesCount64(board.W.Queen) - bits.OnesCount64(board.B.Queen))
+	egMaterialDifference += egValue[QUEEN] * (bits.OnesCount64(board.W.Queen) - bits.OnesCount64(board.B.Queen))
+
+	if !board.GetTopState().IsWhiteTurn {
+		mgMaterialDifference *= -1
+		egMaterialDifference *= -1
+	}
+
+	return (mgMaterialDifference*mgPhase + egMaterialDifference*egPhase) / 24
 }
 
 // Inspired heavily by https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function, calculate with White being positive
@@ -197,4 +226,15 @@ func GetGamePhase(board *Board) int {
 		}
 	}
 	return min(24, gamePhase)
+}
+
+func GetPieceValue(piece PieceInfo, position Position, gamePhase int) int {
+	if piece.isWhite {
+		return ((mgTable[piece.pieceTYPE][position] * gamePhase) +
+			(egTable[piece.pieceTYPE][position] * (24 - gamePhase))) / 24
+	} else {
+		return ((mgTable[piece.pieceTYPE+6][position] * gamePhase) +
+			(egTable[piece.pieceTYPE+6][position] * (24 - gamePhase))) / 24
+	}
+
 }
