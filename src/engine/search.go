@@ -145,7 +145,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	my_pvPtr := pvPtr
 	pv[pvPtr] = NULL_MOVE // initialize empty PV
 	pvPtr += int(depth)
-	for i, move := range moveList {
+	for _, move := range moveList {
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
@@ -303,8 +303,8 @@ func (board *Board) moveordering(usePV_TT bool, PVMove Move, TTMove Move, moveLi
 	for i := range moveList {
 		if !usePV_TT {
 			if moveList[i].enc == PVMove.enc {
-			moveList[i].priority = 127
-			continue
+				moveList[i].priority = 127
+				continue
 			}
 			if moveList[i].enc == TTMove.enc {
 				moveList[i].priority = 126
