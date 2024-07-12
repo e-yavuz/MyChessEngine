@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v8 (Delta Pruning)"
+	name = "ChessEngineEmre v8.2 (Use TT move and PV moves in move-ordering)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
@@ -32,6 +32,7 @@ func UCI() {
 	engine.InitMagicBitBoardTable("magic_rook", "magic_bishop")
 	engine.InitZobristTable()
 	engine.InitPeSTO()
+	gameBoard = engine.InitStartBoard()
 	close(searchCancelChannel)
 	reader := bufio.NewReader(os.Stdin)
 	for {
