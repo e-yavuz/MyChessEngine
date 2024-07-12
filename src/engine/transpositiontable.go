@@ -14,12 +14,12 @@ const (
 // TODO work on TT optimization, seems to function identical to single entry max-depth TT
 // july 2: switch to new version on v7f seems to break it???
 
-type ttSubEntry struct { // 15 bytes
+type ttSubEntry struct { // 16 bytes
 	zobristKey uint64 // 8 bytes
 	score      int    // 4 bytes
 	move       Move   // 2 bytes
-	ttInfo     byte   // 1 bytes
-	turn       byte   // 1 bytes
+	turn       byte   // 1 byte
+	ttInfo     byte   // 1 byte
 }
 
 var NULLttSubEntry = ttSubEntry{}
@@ -28,17 +28,9 @@ func getDepth(ttInfo byte) byte {
 	return ttInfo >> 2
 }
 
-// func getCounter(ttInfo uint16) byte {
-// 	return byte(ttInfo & 0xFF00)
-// }
-
 func getNodeType(ttInfo byte) byte {
 	return ttInfo & 0x3
 }
-
-// func makeTTInfo(flag, depth, counter byte) uint16 {
-// 	return uint16(flag) + (uint16(depth) << 2) + (uint16(counter) << 8)
-// }
 
 func makeTTInfo(flag, depth byte) byte {
 	return flag + (depth << 2)
@@ -46,6 +38,25 @@ func makeTTInfo(flag, depth byte) byte {
 
 type ttEntry struct { // Size: 48 bytes
 	subEntries [ttEntry_ARcount]ttSubEntry // 16x(ttEntry_ARcount + 1 maxDepthNode) bytes
+}
+
+const ttEntry_ARcount = 3 // 2 always replace entries and one max depth
+const sizeTagHASHE = ttEntry_ARcount * 16
+const DefaultTTMBSize = 16
+
+var TableCapacity uint64 = (1024 * 1024 / sizeTagHASHE) * DefaultTTMBSize // 16 MB table with 72 byte entries
+var DebugTableSize = 0
+var DebugKeyCollisions = 0
+var DebugIndexCollisions = 0
+var DebugNewEntries = 0
+var DebugTableMinimumMoveCount uint16 = 0 // Marks the point at which an entry will never be usable, thus updating it increases Table size!
+var DebugTableHits = 0
+var DebugTableProbes = 0
+
+var hash_table []ttEntry
+
+func init() {
+	TTReset(nil, DefaultTTMBSize)
 }
 
 func getBestSubEntry(depth, turn byte, zobristKey uint64) (ttSubEntry, byte, Move) {
@@ -103,24 +114,8 @@ func getReplaceEntry(depth byte, turn byte, zobristKey uint64) *ttSubEntry {
 	return retval
 }
 
-const ttEntry_ARcount = 3 // 2 always replace entries and one max depth
-const sizeTagHASHE = ttEntry_ARcount * 24
-
-var TableCapacity uint64 = (1024 * 1024 / sizeTagHASHE) * 16 // 16 MB table with 72 byte entries
-var DebugTableSize = 0
-var DebugKeyCollisions = 0
-var DebugIndexCollisions = 0
-var DebugNewEntries = 0
-var DebugTableMinimumMoveCount uint16 = 0 // Marks the point at which an entry will never be usable, thus updating it increases Table size!
-var DebugTableHits = 0
-var DebugTableProbes = 0
-
-var hash_table []ttEntry
-
-func init() {
-	TTReset(nil, 16)
-}
-
+func probeHash(depth, turn byte, alpha, beta int, zobristKey uint64) (int, byte, Move) {
+	subEntry, entryNodeType, entryMove := getBestSubEntry(depth, turn, zobristKey)
 	DebugTableProbes++
 
 	if subEntry != NULLttSubEntry {
@@ -150,12 +145,11 @@ func recordHash(depth, nodeType, turn byte, score int, bestMove Move, zobristKey
 }
 
 func getPVMove(zobristKey uint64) Move {
-	subEntry := getBestSubEntry(0, 0, zobristKey)
+	subEntry, _, _ := getBestSubEntry(0, 0, zobristKey)
 	if getNodeType(subEntry.ttInfo) == PVnode {
 		return subEntry.move
 	}
 	return NULL_MOVE
-
 }
 
 func TTReset(board *Board, sizeMB uint64) {
