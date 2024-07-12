@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v8.2 (Use TT move and PV moves in move-ordering)"
+	name = "ChessEngineEmre v8.1b (Late Move Reduction)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
