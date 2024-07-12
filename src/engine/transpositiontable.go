@@ -24,16 +24,16 @@ type ttSubEntry struct { // 16 bytes
 
 var NULLttSubEntry = ttSubEntry{}
 
-func getDepth(ttInfo byte) byte {
-	return ttInfo >> 2
+func getDepth(ttInfo byte) int8 {
+	return int8(ttInfo >> 2)
 }
 
 func getNodeType(ttInfo byte) byte {
 	return ttInfo & 0x3
 }
 
-func makeTTInfo(flag, depth byte) byte {
-	return flag + (depth << 2)
+func makeTTInfo(flag byte, depth int8) byte {
+	return flag + byte(depth<<2)
 }
 
 type ttEntry struct { // Size: 48 bytes
@@ -59,7 +59,7 @@ func init() {
 	TTReset(nil, DefaultTTMBSize)
 }
 
-func getBestSubEntry(depth, turn byte, zobristKey uint64) (ttSubEntry, byte, Move) {
+func getBestSubEntry(depth int8, turn byte, zobristKey uint64) (ttSubEntry, byte, Move) {
 	entry := &hash_table[zobristKey%TableCapacity]
 	retvalSubEntry := NULLttSubEntry
 	retvalNodeType := NULLnode
@@ -84,7 +84,7 @@ func getBestSubEntry(depth, turn byte, zobristKey uint64) (ttSubEntry, byte, Mov
 	return retvalSubEntry, retvalNodeType, retvalMove // nothing found that matches this zobristKey
 }
 
-func getReplaceEntry(depth byte, turn byte, zobristKey uint64) *ttSubEntry {
+func getReplaceEntry(depth int8, turn byte, zobristKey uint64) *ttSubEntry {
 	entry := &hash_table[zobristKey%TableCapacity]
 	var retval *ttSubEntry
 
@@ -114,7 +114,7 @@ func getReplaceEntry(depth byte, turn byte, zobristKey uint64) *ttSubEntry {
 	return retval
 }
 
-func probeHash(depth, turn byte, alpha, beta int, zobristKey uint64) (int, byte, Move) {
+func probeHash(depth int8, turn byte, alpha, beta int, zobristKey uint64) (int, byte, Move) {
 	subEntry, entryNodeType, entryMove := getBestSubEntry(depth, turn, zobristKey)
 	DebugTableProbes++
 
@@ -134,7 +134,7 @@ func probeHash(depth, turn byte, alpha, beta int, zobristKey uint64) (int, byte,
 	return MIN_VALUE, entryNodeType, entryMove
 }
 
-func recordHash(depth, nodeType, turn byte, score int, bestMove Move, zobristKey uint64) {
+func recordHash(depth int8, nodeType, turn byte, score int, bestMove Move, zobristKey uint64) {
 	replacedSubEntry := getReplaceEntry(depth, turn, zobristKey)
 
 	replacedSubEntry.zobristKey = zobristKey

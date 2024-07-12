@@ -22,9 +22,9 @@ const (
 type searchInfo struct {
 	nodeCount uint64
 	startTime time.Time
-	depth     byte
+	depth     int8
 	score     int
-	seldepth  byte
+	seldepth  int8
 	multipv   byte
 	qNodes    uint64
 	pvNodes   uint64
@@ -47,7 +47,7 @@ var pv [triangleTableSize]Move
 var pvPtr int
 
 func (board *Board) StartSearch(startTime time.Time, cancelChannel chan struct{}) Move {
-	var depth byte = 1
+	var depth int8 = 1
 	pvPtr = 0
 	savedPV = [MAX_SEARCH_DEPTH]Move{}
 	if DebugMode {
@@ -93,7 +93,7 @@ func (board *Board) StartSearch(startTime time.Time, cancelChannel chan struct{}
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensions byte, cancelChannel chan struct{}) int {
+func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensions int8, cancelChannel chan struct{}) int {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -115,7 +115,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 		}
 	}
 
-	if depth == 0 {
+	if depth <= 0 {
 		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, 0, cancelChannel)
 		return eval
 	}
@@ -145,6 +145,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	my_pvPtr := pvPtr
 	pv[pvPtr] = NULL_MOVE // initialize empty PV
 	pvPtr += int(depth)
+	for i, move := range moveList {
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
@@ -195,7 +196,7 @@ func (board *Board) search(depth, plyFromRoot byte, alpha, beta int, numExtensio
 	return alpha
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch byte, cancelChannel chan struct{}) int {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch int8, cancelChannel chan struct{}) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return 0
@@ -261,7 +262,7 @@ Extends the search by +1 based upon whether current move:
  1. Leaves the baord in check
  2. Puts a pawn in position to be promoted
 */
-func extendSearch(board *Board, move Move, numExtensions byte) byte {
+func extendSearch(board *Board, move Move, numExtensions int8) int8 {
 	if numExtensions >= MAX_EXTENSION_DEPTH {
 		return 0
 	}
@@ -389,7 +390,7 @@ func engineInfoString() (retval string) {
 	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
 	// Convert PV chain up to depth to a single string seperated by " "
 	pvString := ""
-	for i := byte(0); i < latestSearchInfo.depth; i++ {
+	for i := int8(0); i < latestSearchInfo.depth; i++ {
 		if savedPV[i] == NULL_MOVE {
 			break
 		}
