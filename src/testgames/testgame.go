@@ -127,7 +127,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if err == io.EOF {
 				handleEOFError(stderr1)
 			}
-			fmt.Println("Error writing to engine 1:", err)
+			fmt.Println("Error writing \"ucinewgame\" to engine 1:", err)
 			return -1, -1, -1, -1
 		}
 		_, err = stdin2.Write([]byte("ucinewgame\n"))
@@ -135,7 +135,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if err == io.EOF {
 				handleEOFError(stderr2)
 			}
-			fmt.Println("Error writing to engine 2:", err)
+			fmt.Println("Error writing \"ucinewgame\" to engine 2:", err)
 			return -1, -1, -1, -1
 		}
 		gameBoard = engine.InitFENBoard(fen)
@@ -184,7 +184,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if err == io.EOF {
 				handleEOFError(stderr1)
 			}
-			fmt.Println("Error writing to engine 1:", err)
+			fmt.Println("Error writing \"ucinewgame\" to engine 1:", err)
 			return -1, -1, -1, -1
 		}
 		_, err = stdin2.Write([]byte("ucinewgame\n"))
@@ -192,7 +192,7 @@ func StartGame(engine1 string, engine2 string, fenBoards []string) (int, int, in
 			if err == io.EOF {
 				handleEOFError(stderr2)
 			}
-			fmt.Println("Error writing to engine 2:", err)
+			fmt.Println("Error writing \"ucinewgame\" to engine 2:", err)
 			return -1, -1, -1, -1
 		}
 
@@ -251,7 +251,8 @@ func makeTurn(engineID int, stdin io.WriteCloser, stdout, stderr io.ReadCloser, 
 		if err == io.EOF {
 			handleEOFError(stderr)
 		}
-		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
+
+		fmt.Printf("Error writing \"isready\" to engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
@@ -278,7 +279,7 @@ func makeTurn(engineID int, stdin io.WriteCloser, stdout, stderr io.ReadCloser, 
 	// Write the current state of the board to the engine
 	_, err = stdin.Write([]byte(positionString))
 	if err != nil {
-		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
+		fmt.Printf("Error writing \"%s\" to engine %d: %s\n", positionString, engineID, err)
 		return engine.Error
 	}
 
@@ -288,7 +289,7 @@ func makeTurn(engineID int, stdin io.WriteCloser, stdout, stderr io.ReadCloser, 
 		if err == io.EOF {
 			handleEOFError(stderr)
 		}
-		fmt.Printf("Error writing to engine %d: %s\n", engineID, err)
+		fmt.Printf("Error writing \"go movetime 100\" to engine %d: %s\n", engineID, err)
 		return engine.Error
 	}
 
