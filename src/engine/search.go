@@ -194,7 +194,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 
 		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, cancelChannel)
-		if score > alpha && score <= beta {
+		if score > alpha {
 			score = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
 		}
 
