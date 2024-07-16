@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v9a (using pv in search instead of SavedPV, essentially the current pv in progress)"
+	name = "ChessEngineEmre v9 (Using PVS with full move generation, can run position tests and depth-test)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
