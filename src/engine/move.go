@@ -138,7 +138,7 @@ func abs(x int) int {
 	return x
 }
 
-func newMove(from, to Position, flag uint16) Move {
+func NewMove(from, to Position, flag uint16) Move {
 	return Move{enc: uint16(from) + (uint16(to) << 6) + (flag << 12)}
 }
 

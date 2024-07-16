@@ -20,7 +20,7 @@ func Test_SearchStartPosition_20s(t *testing.T) {
 		time.Sleep(time.Duration(20000) * time.Millisecond)
 		close(cancelChannel)
 	}()
-	test.StartSearch(startTime, cancelChannel)
+	test.StartSearchNoDepth(startTime, cancelChannel)
 	DebugMode = false
 }
 
@@ -39,6 +39,25 @@ func Test_SearchPosition1_20s(t *testing.T) {
 		time.Sleep(time.Duration(20000) * time.Millisecond)
 		close(cancelChannel)
 	}()
-	test.StartSearch(startTime, cancelChannel)
+	test.StartSearchNoDepth(startTime, cancelChannel)
+	DebugMode = false
+}
+
+func Test_SearchPosition2_20s(t *testing.T) {
+	InitMagicBitBoardTable("../../magic_rook", "../../magic_bishop")
+	InitZobristTable()
+	InitPeSTO()
+
+	test := InitFENBoard("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+	TTReset(test, DefaultTTMBSize)
+	DebugMode = true
+	cancelChannel := make(chan struct{})
+
+	startTime := time.Now()
+	go func() {
+		time.Sleep(time.Duration(20000) * time.Millisecond)
+		close(cancelChannel)
+	}()
+	test.StartSearchNoDepth(startTime, cancelChannel)
 	DebugMode = false
 }

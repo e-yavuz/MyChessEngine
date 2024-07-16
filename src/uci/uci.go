@@ -6,6 +6,7 @@ package chessengine
 import (
 	"bufio"
 	engine "chessengine/src/engine"
+	testpositions "chessengine/src/testpositions"
 	"fmt"
 	"os"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v8.1b (Late Move Reduction)"
+	name = "ChessEngineEmre v9a (using pv in search instead of SavedPV, essentially the current pv in progress)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
@@ -82,6 +83,10 @@ func readCommand(reader *bufio.Reader) (bool, error) {
 		return true, commandTestGameAI()
 	} else if strings.HasPrefix(text, "undomove") {
 		return true, commandTestGameUndoMove()
+	} else if strings.HasPrefix(text, "bk-test") {
+		return true, commandBratkoKopec(text)
+	} else if strings.HasPrefix(text, "depth-test") {
+		return true, commandDepthTest(text)
 	} else if strings.HasPrefix(text, "eval") {
 		return true, commandEval(text)
 	} else if strings.HasPrefix(text, "board") {
@@ -292,7 +297,7 @@ func commandGo(text string) (engine.Move, error) {
 		}()
 	}
 
-	move := gameBoard.StartSearch(time.Now(), searchCancelChannel)
+	move := gameBoard.StartSearchNoDepth(time.Now(), searchCancelChannel)
 
 	fmt.Printf("bestmove %s\n", engine.MoveToString(move))
 
@@ -484,4 +489,31 @@ func optionList() {
 	fmt.Println("option name Hash type spin default 16 min 1 max 1024")
 	fmt.Println("option name Clear Hash type button")
 	fmt.Println("option name OwnBook type check default false")
+}
+
+func commandBratkoKopec(text string) error {
+	time, err := strconv.Atoi(strings.TrimPrefix(text, "bk-test "))
+	if err != nil {
+		return err
+	}
+	totalCorrect, totalRun := testpositions.Run(time)
+	fmt.Printf("%d/%d PASSED\n", totalCorrect, totalRun)
+	return nil
+}
+
+func commandDepthTest(text string) error {
+	if gameBoard == nil {
+		return fmt.Errorf("invalid board")
+	}
+	depth, err := strconv.Atoi(strings.TrimPrefix(text, "depth-test "))
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	startTime := time.Now()
+	searchCancelChannel = make(chan struct{})
+	move := gameBoard.StartSearchDepth(startTime, int8(depth), searchCancelChannel)
+	close(searchCancelChannel)
+	fmt.Printf("bestmove %s, time: %dms\n", engine.MoveToString(move), time.Since(startTime).Milliseconds())
+	return nil
 }

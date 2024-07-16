@@ -144,14 +144,6 @@ func recordHash(depth int8, nodeType, turn byte, score int, bestMove Move, zobri
 	replacedSubEntry.turn = turn
 }
 
-func getPVMove(zobristKey uint64) Move {
-	subEntry, _, _ := getBestSubEntry(0, 0, zobristKey)
-	if getNodeType(subEntry.ttInfo) == PVnode {
-		return subEntry.move
-	}
-	return NULL_MOVE
-}
-
 func TTReset(board *Board, sizeMB uint64) {
 	TableCapacity = (1024 * 1024 / sizeTagHASHE) * sizeMB
 	hash_table = make([]ttEntry, TableCapacity)

@@ -56,7 +56,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, newMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 
@@ -68,7 +68,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, newMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 
@@ -81,7 +81,7 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 			// queen = rook + bishop!
 			validPositions := (rookMoves | bishopMoves) & ^friendlyOccupancyBitBoard & targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-				*moveList = append(*moveList, newMove(from, to, flag))
+				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
 		}
 	}
@@ -318,19 +318,19 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		if !inCheck &&
 			castleKing &&
 			(getIntermediaryRay(from, from+3)&targetBitBoard) == getIntermediaryRay(from, from+3) {
-			*moveList = append(*moveList, newMove(from, from+2, kingCastleFlag))
+			*moveList = append(*moveList, NewMove(from, from+2, kingCastleFlag))
 		}
 		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
 			(getIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == 0 &&
 			(getIntermediaryRay(from, from-3)&targetBitBoard) == getIntermediaryRay(from, from-3) {
-			*moveList = append(*moveList, newMove(from, from-2, queenCastleFlag))
+			*moveList = append(*moveList, NewMove(from, from-2, queenCastleFlag))
 		}
 	}
 
 	for to = PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
-		*moveList = append(*moveList, newMove(from, to, kingFlag))
+		*moveList = append(*moveList, NewMove(from, to, kingFlag))
 	}
 }
 
@@ -577,7 +577,7 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 // Helper function to generate moves for a bitboard of pieces given a static direction
 func moveListHelper(bitboard BitBoard, moveDir Direction, flag Flag, moveList *[]Move) {
 	for to := PopLSB(&bitboard); to != INVALID_POSITION; to = PopLSB(&bitboard) {
-		*moveList = append(*moveList, newMove(to-Position(moveDir), to, flag))
+		*moveList = append(*moveList, NewMove(to-Position(moveDir), to, flag))
 	}
 }
 
