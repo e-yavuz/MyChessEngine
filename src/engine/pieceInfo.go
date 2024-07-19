@@ -1,5 +1,15 @@
 package chessengine
 
+const (
+	PAWN = iota
+	KNIGHT
+	BISHOP
+	ROOK
+	QUEEN
+	KING
+	NULL_PIECE
+)
+
 type PieceInfo struct {
 	thisBitBoard *BitBoard
 	isWhite      bool

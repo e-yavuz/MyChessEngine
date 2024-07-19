@@ -7,16 +7,6 @@ const (
 	ALL
 )
 
-const (
-	PAWN = iota
-	KNIGHT
-	BISHOP
-	ROOK
-	QUEEN
-	KING
-	NULL_PIECE
-)
-
 const MAX_MOVE_COUNT = 218
 const MAX_CAPTURE_COUNT = 74
 const MAX_QUIET_COUNT = MAX_MOVE_COUNT - MAX_CAPTURE_COUNT // 144

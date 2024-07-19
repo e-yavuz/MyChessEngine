@@ -29,7 +29,7 @@ func TestInitTable(t *testing.T) {
 
 	if GetBishopMoves(12, 0x280028) != 550832177192 {
 		t.Fatalf("Failed magic array pull\n\tGot:\n%s\n\tWanted:\n%s",
-			BitBoardToString(GetBishopMoves(12, 0x280028)), BitBoardToString(1157442765409226799))
+			BitBoardToString(GetBishopMoves(12, 0x280028)), BitBoardToString(550832177192))
 	}
 
 	// Remove temporary test files
