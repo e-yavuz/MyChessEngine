@@ -21,7 +21,6 @@ const (
 )
 
 type searchInfo struct {
-	nodeCount uint64
 	startTime time.Time
 	depth     int8
 	score     int
@@ -31,6 +30,7 @@ type searchInfo struct {
 	pvNodes   uint64
 	allNodes  uint64
 	cutNodes  uint64
+	leafNodes uint64
 }
 
 var latestSearchInfo searchInfo
@@ -113,19 +113,18 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	if plyFromRoot > 0 {
 		// Fifty move rule
 		if board.GetTopState().HalfMoveClock >= 100 {
-			latestSearchInfo.nodeCount++
 			return 0
 		}
 
 		// Threefold repetition
 		if board.RepetitionPositionHistory[board.GetTopState().ZobristKey] == 3 {
-			latestSearchInfo.nodeCount++
 			return 0
 		}
 	}
 
 	if depth <= 0 {
 		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, 0, cancelChannel)
+		latestSearchInfo.leafNodes++
 		return eval
 	}
 
@@ -137,12 +136,11 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		return probeScore
 	}
 
-	latestSearchInfo.nodeCount++
-
 	moveList := board.GenerateMoves(ALL, searchMovePool[plyFromRoot][:0])
 	board.moveordering(false, savedPV[plyFromRoot], probeMove, moveList)
 
 	if len(moveList) == 0 {
+		latestSearchInfo.leafNodes++
 		if board.InCheck() {
 			return MATE_SCORE + int(plyFromRoot) // Checkmate
 		} else {
@@ -175,8 +173,10 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
 			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
-			latestSearchInfo.cutNodes++
 			pvPtr = this_pvPtr
+			if depth == 1 {
+				latestSearchInfo.cutNodes++
+			}
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
@@ -209,7 +209,6 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 
 		if score >= beta {
 			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
-			latestSearchInfo.cutNodes++
 			pvPtr = this_pvPtr
 			return beta
 		}
@@ -223,9 +222,9 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		}
 	}
 
-	if nodeType == ALLnode {
+	if nodeType == ALLnode && depth == 1 {
 		latestSearchInfo.allNodes++
-	} else {
+	} else if nodeType == PVnode && depth == 1 {
 		latestSearchInfo.pvNodes++
 	}
 
@@ -434,8 +433,9 @@ func updatePVTable(this_pvPtr int, move Move, depth int8) {
 info depth <depth> seldepth <maxdepth searched> multipv <principal variations> score cp <score> nodes <nodecount> nps <nodes / time> time <time taken in ms> pv <pv>
 */
 func engineInfoString() (retval string) {
+	nodeCount := latestSearchInfo.allNodes + latestSearchInfo.pvNodes + latestSearchInfo.cutNodes
 	elapsedTime := time.Since(latestSearchInfo.startTime)
-	nps := int64(float64(latestSearchInfo.nodeCount) / elapsedTime.Seconds())
+	nps := int64(float64(nodeCount) / elapsedTime.Seconds())
 	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
 	// Convert PV chain up to depth to a single string seperated by " "
 	pvString := ""
@@ -450,10 +450,10 @@ func engineInfoString() (retval string) {
 
 	retval += fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
 		latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
-		latestSearchInfo.score, latestSearchInfo.nodeCount, nps, hashFill, elapsedTime.Milliseconds(), pvString)
+		latestSearchInfo.score, latestSearchInfo.leafNodes, nps, hashFill, elapsedTime.Milliseconds(), pvString)
 
 	if DebugMode {
-		retval += fmt.Sprintf("\nDebug Info:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d\n", latestSearchInfo.pvNodes, 100*float32(latestSearchInfo.pvNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.allNodes, 100*float32(latestSearchInfo.allNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.cutNodes, 100*float32(latestSearchInfo.cutNodes)/float32(latestSearchInfo.nodeCount), latestSearchInfo.qNodes)
+		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d\n", latestSearchInfo.pvNodes, 100*float32(latestSearchInfo.pvNodes)/float32(nodeCount), latestSearchInfo.allNodes, 100*float32(latestSearchInfo.allNodes)/float32(nodeCount), latestSearchInfo.cutNodes, 100*float32(latestSearchInfo.cutNodes)/float32(nodeCount), latestSearchInfo.qNodes-latestSearchInfo.leafNodes)
 	}
 
 	return retval
