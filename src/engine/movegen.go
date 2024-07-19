@@ -10,8 +10,8 @@ const (
 const (
 	PAWN = iota
 	KNIGHT
-	ROOK
 	BISHOP
+	ROOK
 	QUEEN
 	KING
 	NULL_PIECE

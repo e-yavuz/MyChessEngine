@@ -123,7 +123,7 @@ func InitFENBoard(FEN string) *Board {
 		RepetitionPositionHistory: make(map[uint64]int),
 	}
 
-	var position Position = 56
+	var position Position = A8
 
 	for _, r := range piecePositions {
 		if r == '/' {

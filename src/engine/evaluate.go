@@ -1,6 +1,8 @@
 package chessengine
 
-import "math/bits"
+import (
+	"math/bits"
+)
 
 const (
 	WHITE = 0
@@ -139,11 +141,11 @@ var egTable = [12][64]int{}
 
 func InitPeSTO() {
 	for p := PAWN; p <= KING; p++ {
-		for sq := 0; sq < 64; sq++ {
-			mgTable[p][sq] = mgValue[p] + (*mgReferenceTable[p])[sq]
-			mgTable[p+6][sq] = mgValue[p] + (*mgReferenceTable[p])[sq^56] // ^56 = flipped position
-			egTable[p][sq] = egValue[p] + (*egReferenceTable[p])[sq]
-			egTable[p+6][sq] = egValue[p] + (*egReferenceTable[p])[sq^56]
+		for sq := A1; sq <= H8; sq++ {
+			mgTable[p][sq] = mgValue[p] + (*mgReferenceTable[p])[sq^56] // ^56 = flipped position because PeSTO tables have 0 = black side
+			mgTable[p+6][sq] = mgValue[p] + (*mgReferenceTable[p])[sq]
+			egTable[p][sq] = egValue[p] + (*egReferenceTable[p])[sq^56]
+			egTable[p+6][sq] = egValue[p] + (*egReferenceTable[p])[sq]
 		}
 	}
 }
