@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v9 (Using PVS with full move generation, can run position tests and depth-test)"
+	name = "ChessEngineEmre v10 (Fixed bug in PeSTO table **explained in git logs**)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
@@ -464,33 +464,6 @@ func commandBoard() error {
 	return nil
 }
 
-func commandHelp() error {
-	fmt.Println("\tuci - Initialize the UCI protocol")
-	fmt.Println("\tisready - Check if the engine is ready")
-	fmt.Println("\tposition [startpos/fen <fen_string>] [moves <move_list>] - Set up the board position")
-	fmt.Println("\tgo - Start searching for the best move")
-	fmt.Println("\tucinewgame - Clear the board and reset the game")
-	fmt.Println("\tdebug [on/off] - Enable or disable debug mode")
-	fmt.Println("\tsetoption")
-	fmt.Println("\t\tname Hash <hash_size> - Set the hash table size in MB (default 16, min 1, max 1024)")
-	fmt.Println("\t\tname Clear Hash - Clears the Transposition Hash Table")
-	fmt.Println("\t\tname OwnBook [on/off] - Sets if engine can use saved book moves")
-	fmt.Println("\tpossiblemoves - Display all possible moves from the current position (debug mode only)")
-	fmt.Println("\tmove <move_uci> - Make a custom move, followed by the engine's move, on the current board (debug mode only)")
-	fmt.Println("\taimove - Tell engine to make best discovered move on the current board (debug mode only)")
-	fmt.Println("\tundomove - Undo the last move on the current board (debug mode only)")
-	fmt.Println("\teval - Evaluate the current position (debug mode only)")
-	fmt.Println("\thelp - Display this help message")
-	fmt.Println("\tquit - Exit the program")
-	return nil
-}
-
-func optionList() {
-	fmt.Println("option name Hash type spin default 16 min 1 max 1024")
-	fmt.Println("option name Clear Hash type button")
-	fmt.Println("option name OwnBook type check default false")
-}
-
 func commandBratkoKopec(text string) error {
 	time, err := strconv.Atoi(strings.TrimPrefix(text, "bk-test "))
 	if err != nil {
@@ -516,4 +489,31 @@ func commandDepthTest(text string) error {
 	close(searchCancelChannel)
 	fmt.Printf("bestmove %s, time: %dms\n", engine.MoveToString(move), time.Since(startTime).Milliseconds())
 	return nil
+}
+
+func commandHelp() error {
+	fmt.Println("\tuci - Initialize the UCI protocol")
+	fmt.Println("\tisready - Check if the engine is ready")
+	fmt.Println("\tposition [startpos/fen <fen_string>] [moves <move_list>] - Set up the board position")
+	fmt.Println("\tgo - Start searching for the best move")
+	fmt.Println("\tucinewgame - Clear the board and reset the game")
+	fmt.Println("\tdebug [on/off] - Enable or disable debug mode")
+	fmt.Println("\tsetoption")
+	fmt.Println("\t\tname Hash <hash_size> - Set the hash table size in MB (default 16, min 1, max 1024)")
+	fmt.Println("\t\tname Clear Hash - Clears the Transposition Hash Table")
+	fmt.Println("\t\tname OwnBook [on/off] - Sets if engine can use saved book moves")
+	fmt.Println("\tpossiblemoves - Display all possible moves from the current position (debug mode only)")
+	fmt.Println("\tmove <move_uci> - Make a custom move, followed by the engine's move, on the current board (debug mode only)")
+	fmt.Println("\taimove - Tell engine to make best discovered move on the current board (debug mode only)")
+	fmt.Println("\tundomove - Undo the last move on the current board (debug mode only)")
+	fmt.Println("\teval - Evaluate the current position (debug mode only)")
+	fmt.Println("\thelp - Display this help message")
+	fmt.Println("\tquit - Exit the program")
+	return nil
+}
+
+func optionList() {
+	fmt.Println("option name Hash type spin default 16 min 1 max 1024")
+	fmt.Println("option name Clear Hash type button")
+	fmt.Println("option name OwnBook type check default false")
 }
