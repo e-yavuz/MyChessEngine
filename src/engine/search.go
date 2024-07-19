@@ -64,9 +64,9 @@ func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChanne
 	}
 
 	currentSearchTurn = board.GetTopState().TurnCounter
+	bestEvalThisIteration = MIN_VALUE
 
 	for depth <= max_depth {
-		bestEvalThisIteration = MIN_VALUE
 
 		latestSearchInfo = searchInfo{startTime: startTime, multipv: 1, depth: depth}
 
@@ -106,7 +106,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
-		return 0
+		return bestEvalThisIteration
 	default:
 	}
 
@@ -151,16 +151,24 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	}
 
 	nodeType := ALLnode
-	my_pvPtr := pvPtr
+	this_pvPtr := pvPtr
 	pv[pvPtr] = NULL_MOVE // initialize empty PV
 	pvPtr += int(MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)
 
 	{
+		move := moveList[0]
 		// using fail soft with negamax:
-		board.MakeMove(moveList[0])
-		extension := extendSearch(board, moveList[0], numExtensions)
+		board.MakeMove(move)
+		extension := extendSearch(board, move, numExtensions)
 		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
 		board.UnMakeMove()
+
+		// Check if the search has been cancelled
+		select {
+		case <-cancelChannel:
+			return bestEvalThisIteration
+		default:
+		}
 
 		if score >= beta {
 			// If the score is greater than or equal to beta,
@@ -168,19 +176,11 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 			// We record this information in the transposition table.
 			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
 			latestSearchInfo.cutNodes++
-			pvPtr = my_pvPtr
+			pvPtr = this_pvPtr
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
-			child_pvPtr := pvPtr
-			pvPtr = my_pvPtr
-			pv[pvPtr] = moveList[0]
-			pvPtr++
-			for i := int8(0); i < depth-1 && pv[child_pvPtr] != NULL_MOVE; i++ { // copy child PV behind it
-				pv[pvPtr] = pv[child_pvPtr]
-				pvPtr++
-				child_pvPtr++
-			}
+			updatePVTable(this_pvPtr, move, depth)
 			nodeType = PVnode
 			alpha = score
 			if plyFromRoot == 0 {
@@ -203,26 +203,18 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		// Check if the search has been cancelled
 		select {
 		case <-cancelChannel:
-			return 0
+			return bestEvalThisIteration
 		default:
 		}
 
 		if score >= beta {
 			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
 			latestSearchInfo.cutNodes++
-			pvPtr = my_pvPtr
+			pvPtr = this_pvPtr
 			return beta
 		}
 		if score > alpha { // This move is better than the current best move
-			child_pvPtr := pvPtr
-			pvPtr = my_pvPtr
-			pv[pvPtr] = move
-			pvPtr++
-			for i := int8(0); i < depth-1 && pv[child_pvPtr] != NULL_MOVE; i++ { // copy child PV behind it
-				pv[pvPtr] = pv[child_pvPtr]
-				pvPtr++
-				child_pvPtr++
-			}
+			updatePVTable(this_pvPtr, move, depth)
 			nodeType = PVnode
 			alpha = score
 			if plyFromRoot == 0 {
@@ -237,15 +229,15 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		latestSearchInfo.pvNodes++
 	}
 
-	pvPtr = my_pvPtr
-	recordHash(depth, nodeType, currentSearchTurn, alpha, pv[my_pvPtr], board.GetTopState().ZobristKey) // Record the best move for this position
+	pvPtr = this_pvPtr
+	recordHash(depth, nodeType, currentSearchTurn, alpha, pv[this_pvPtr], board.GetTopState().ZobristKey) // Record the best move for this position
 	return alpha
 }
 
 func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch int8, cancelChannel chan struct{}) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
-		return 0
+		return bestEvalThisIteration
 	default:
 	}
 
@@ -422,6 +414,18 @@ func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
 	return GetPieceValue(*board.PieceInfoArr[targetPosition],
 		targetPosition,
 		gamePhase)
+}
+
+func updatePVTable(this_pvPtr int, move Move, depth int8) {
+	child_pvPtr := pvPtr
+	pvPtr = this_pvPtr
+	pv[pvPtr] = move
+	pvPtr++
+	for i := int8(0); i < depth-1 && pv[child_pvPtr] != NULL_MOVE; i++ { // copy child PV behind it
+		pv[pvPtr] = pv[child_pvPtr]
+		pvPtr++
+		child_pvPtr++
+	}
 }
 
 /*
