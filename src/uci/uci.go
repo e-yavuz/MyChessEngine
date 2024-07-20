@@ -469,8 +469,9 @@ func commandBratkoKopec(text string) error {
 	if err != nil {
 		return err
 	}
-	totalCorrect, totalRun := testpositions.Run(time)
+	totalCorrect, totalRun := testpositions.Run(time, options.Hash)
 	fmt.Printf("%d/%d PASSED\n", totalCorrect, totalRun)
+	engine.TTReset(gameBoard, uint64(options.Hash))
 	return nil
 }
 
@@ -488,6 +489,7 @@ func commandDepthTest(text string) error {
 	move := gameBoard.StartSearchDepth(startTime, int8(depth), searchCancelChannel)
 	close(searchCancelChannel)
 	fmt.Printf("bestmove %s, time: %dms\n", engine.MoveToString(move), time.Since(startTime).Milliseconds())
+	engine.TTReset(gameBoard, uint64(options.Hash))
 	return nil
 }
 

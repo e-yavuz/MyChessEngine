@@ -51,10 +51,11 @@ type BKTest struct {
 // 	{"2q1rr1k/3bbnnp/p2p1pp1/2pPp3/PpP1P1P1/1P2BNNP/2BQ1PRK/7R b - - 0 1", engine.Move{engine.f5, engine.NoSquare, engine.Pawn, engine.NoPiece, engine.NoPiece}},
 
 // Returns # of tests passed
-func Run(timePerCase int) (totalCorrect, totalRun int) {
+func Run(timePerCase int, hashSize uint64) (totalCorrect, totalRun int) {
 	testCases := GetTests()
 	for _, testCase := range testCases {
 		board := engine.InitFENBoard(testCase.fen)
+		engine.TTReset(board, hashSize)
 		searchCancelChannel := make(chan struct{})
 		go func() {
 			time.Sleep(time.Duration(timePerCase) * time.Millisecond)
