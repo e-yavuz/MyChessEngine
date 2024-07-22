@@ -31,8 +31,90 @@ v8
 v9
     +Principal Variation Search
 
+depth-10 search, startpos:
+info depth 10 seldepth 12 multipv 1 score cp 10 nodes 1113884 nps 225000 hashfull 977 time 4950 pv g1f3 g8f6 b1c3 b8c6 e2e4 a8b8 f1e2 e7e5 c3d5 f6e4
+Debug Info:
+        pvNodes: 27(0.00%)
+        allNodes: 181527(16.30%)
+        cutNodes: 931731(83.65%)
+        qNodes: 4743771
+
+TT occupancy: 97.72%
+        New Entries: 1583636(154.56%)
+        Key Collisions: 1139560(71.96%)
+        Index Collisions: 102536(6.47%)
+        Hit Rate: 35.46%
+bestmove g1f3, time: 34392ms
+
 v10
     +Fixed bug in PeSTO table **explained in git logs**
 
+depth-10 search, startpos:
+info depth 10 seldepth 19 multipv 1 score cp 9 nodes 11507499 nps 73601 hashfull 1000 time 156349 pv e2e4 e7e5 g1f3 b8c6 b1c3 g8f6 d2d4 e5d4 f3d4 f8d6
+Debug Info:
+        pvNodes: 300(0.00%)
+        allNodes: 2030262(17.64%)
+        cutNodes: 9459711(82.20%)
+        qNodes: 82883328
+
+TT occupancy: 100.00%
+        New Entries: 12903572(1230.60%)
+        Key Collisions: 12138685(94.07%)
+        Index Collisions: 415367(3.22%)
+        Hit Rate: 22.57%
+bestmove e2e4, time: 156350ms
+
 v11
     +Fail-soft & LMR > 2 moves
+
+depth-10 search, startpos:
+info depth 10 seldepth 16 multipv 1 score cp 14 nodes 1922088 nps 109997 hashfull 882 time 3101 pv e2e4 b8c6 f1d3 d7d5 e4d5 d8d5 g1f3 c6e5 f3e5 d5e5
+Debug Info of depth-1 nodes:
+        pvNodes: 145(0.04%)
+        allNodes: 53919(15.80%)
+        cutNodes: 287149(84.16%)
+        qNodes: 935752
+
+Debug Info of sibling nodes:
+        siblingNodes: 2002025
+        siblingNodes re-searched: 431(0.02%)
+
+Debug Info of reduced nodes:
+        reducedNodes: 39146(11.47%)
+        average Reduce Amount: 1.07
+        reducedNodes re-searched: 105(0.27%)
+
+TT occupancy: 88.29%
+        New Entries: 827971(89.44%)
+        Key Collisions: 458172(55.34%)
+        Index Collisions: 61210(7.39%)
+        Hit Rate: 19.44%
+bestmove e2e4, time: 3102ms
+
+v12
+    +WIP
+
+12a
+depth-10 search, startpos:
+info depth 10 seldepth 22 multipv 1 score cp 20 nodes 1565115 nps 107411 hashfull 832 time 2650 pv e2e4 e7e6 g1f3 d7d5 f1d3 d5e4 d3e4 g8f6 b1c3 b8c6
+Debug Info of depth-1 nodes:
+        pvNodes: 175(0.06%)
+        allNodes: 39774(13.97%)
+        cutNodes: 244737(85.97%)
+        qNodes: 1132961
+
+Debug Info of sibling nodes:
+        siblingNodes: 1649502
+        siblingNodes re-searched: 773(0.05%)
+
+Debug Info of reduced nodes:
+        reducedNodes: 41169(14.46%)
+        average Reduce Amount: 1.07
+        reducedNodes re-searched: 139(0.34%)
+
+TT occupancy: 83.22%
+        New Entries: 702581(80.51%)
+        Key Collisions: 346353(49.30%)
+        Index Collisions: 65344(9.30%)
+        Hit Rate: 22.77%
+bestmove e2e4, time: 2650ms
