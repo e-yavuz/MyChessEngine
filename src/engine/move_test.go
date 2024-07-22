@@ -307,78 +307,78 @@ func Test_Castling(t *testing.T) {
 
 	// Test for king-side castling negated after rook move
 
-	test = InitFENBoard("8/8/8/8/8/8/8/RNBQK2R w KQ - 0 1")
+	test = InitFENBoard("1k6/8/8/8/8/8/8/RNBQK2R w KQ - 0 1")
 	from = H1
 	to = G1
 	flag = quietFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("8/8/8/8/8/8/8/RNBQK1R1 b Q - 1 1")
+	truth = InitFENBoard("1k6/8/8/8/8/8/8/RNBQK1R1 b Q - 1 1")
 
 	if !test.Equal(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 
 	// Test for queen-side castling negated after rook move
-	test = InitFENBoard("8/8/8/8/8/8/8/R3K2R w KQ - 0 1")
+	test = InitFENBoard("1k6/8/8/8/8/8/8/R3K2R w KQ - 0 1")
 	from = A1
 	to = B1
 	flag = quietFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("8/8/8/8/8/8/8/1R2K2R b K - 1 1")
+	truth = InitFENBoard("1k6/8/8/8/8/8/8/1R2K2R b K - 1 1")
 
 	if !test.Equal(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 
 	// Test for both sides castling negated after white king move
-	test = InitFENBoard("8/8/8/8/8/8/8/R3K2R w KQ - 0 1")
+	test = InitFENBoard("1k6/8/8/8/8/8/8/R3K2R w KQ - 0 1")
 	from = E1
 	to = E2
 	flag = quietFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("8/8/8/8/8/8/4K3/R6R b - - 1 1")
+	truth = InitFENBoard("1k6/8/8/8/8/8/4K3/R6R b - - 1 1")
 
 	if !test.Equal(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 
 	// Test for both sides castling negated after black king move
-	test = InitFENBoard("r3k2r/8/8/8/8/8/8/8 b kq - 0 1")
+	test = InitFENBoard("r3k2r/8/8/8/8/8/8/1K6 b kq - 0 1")
 	from = E8
 	to = E7
 	flag = quietFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("r6r/4k3/8/8/8/8/8/8 w - - 1 2")
+	truth = InitFENBoard("r6r/4k3/8/8/8/8/8/1K6 w - - 1 2")
 
 	if !test.Equal(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 
 	// Test for king castling negated after king rook captured
-	test = InitFENBoard("8/8/8/8/8/8/7q/R3K2R b KQ - 0 1")
+	test = InitFENBoard("1k6/8/8/8/8/8/7q/R3K2R b KQ - 0 1")
 	from = H2
 	to = H1
 	flag = captureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("8/8/8/8/8/8/8/R3K2q w Q - 0 2")
+	truth = InitFENBoard("1k6/8/8/8/8/8/8/R3K2q w Q - 0 2")
 
 	if !test.equalNoCapture(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
 	}
 
 	// Test for queen castling negated after queen rook captured
-	test = InitFENBoard("8/8/8/8/8/8/q7/R3K2R b KQ - 0 1")
+	test = InitFENBoard("1k6/8/8/8/8/8/q7/R3K2R b KQ - 0 1")
 	from = A2
 	to = A1
 	flag = captureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("8/8/8/8/8/8/8/q3K2R w K - 0 2")
+	truth = InitFENBoard("1k6/8/8/8/8/8/8/q3K2R w K - 0 2")
 
 	if !test.equalNoCapture(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -395,13 +395,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for queen promotion
 
-	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("8/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = A8
 	flag = queenPromotionFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("Q7/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("Q7/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -409,13 +409,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for knight promotion
 
-	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("8/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = A8
 	flag = knightPromotionFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("N7/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("N7/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -423,13 +423,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for bishop promotion
 
-	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("8/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = A8
 	flag = bishopPromotionFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("B7/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("B7/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -437,13 +437,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for rook promotion
 
-	test = InitFENBoard("8/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("8/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = A8
 	flag = rookPromotionFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("R7/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("R7/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -451,13 +451,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for queen promotion capture
 
-	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = B8
 	flag = queenPromoCaptureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("1Q6/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("1Q6/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -465,13 +465,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for knight promotion capture
 
-	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = B8
 	flag = knightPromoCaptureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("1N6/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("1N6/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -479,13 +479,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for bishop promotion capture
 
-	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = B8
 	flag = bishopPromoCaptureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("1B6/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("1B6/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())
@@ -493,13 +493,13 @@ func Test_Promotion(t *testing.T) {
 
 	// Test for rook promotion capture
 
-	test = InitFENBoard("1p6/P7/8/8/8/8/8/8 w - - 0 1")
+	test = InitFENBoard("1p6/P7/8/8/8/8/8/5k1K w - - 0 1")
 	from = A7
 	to = B8
 	flag = rookPromoCaptureFlag
 	test.MakeMove(NewMove(from, to, flag))
 
-	truth = InitFENBoard("1R6/8/8/8/8/8/8/8 b - - 1 2")
+	truth = InitFENBoard("1R6/8/8/8/8/8/8/5k1K b - - 1 2")
 
 	if !test.equalNoStateCompare(truth) {
 		t.Fatalf("Move %d->%d with flag: %d\nWanted:\n%s\nGot:\n%s", from, to, flag, truth.DisplayBoard(), test.DisplayBoard())

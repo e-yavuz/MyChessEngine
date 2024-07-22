@@ -546,7 +546,7 @@ func moveListHelper(bitboard BitBoard, moveDir Direction, moveList *[]Move, flag
 	}
 }
 
-// Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
+// Checks wether or not a given square is attacked by a given color
 func (board *Board) isAttacked(position Position, color int8) bool {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
 	var enemyPieces *Pieces
@@ -606,6 +606,14 @@ func (board *Board) isAttacked(position Position, color int8) bool {
 		attackers := GetBishopMoves(position, BishopMask(position)&totalBitBoard)
 		attackers &= enemyPieces.Queen | enemyPieces.Bishop
 
+		if attackers > 0 {
+			return true
+		}
+	}
+
+	// King
+	{
+		attackers := kingMoveBoard[position] & enemyPieces.King
 		if attackers > 0 {
 			return true
 		}
