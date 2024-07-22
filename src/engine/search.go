@@ -1,9 +1,7 @@
 package chessengine
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"time"
 )
 
@@ -50,7 +48,7 @@ var currentSearchTurn byte
 var DebugMode = false
 var savedPV [MAX_SEARCH_DEPTH]Move
 
-var searchMovePool [MAX_SEARCH_DEPTH][MAX_MOVE_COUNT]Move
+var searchMovePool [MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH][MAX_MOVE_COUNT]Move
 var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
 
 var pv [squareTableSize]Move
@@ -111,7 +109,7 @@ func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChanne
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensions int8, cancelChannel chan struct{}) int {
+func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensions int8, searchReduced bool, cancelChannel chan struct{}) int {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -162,12 +160,14 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	pv[pvPtr] = NULL_MOVE // initialize empty PV
 	pvPtr += int(MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)
 
+	var bestScore int
+
 	{
 		move := moveList[0]
 		// using fail soft with negamax:
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
-		score := -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
+		bestScore = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, cancelChannel)
 		board.UnMakeMove()
 
 		// Check if the search has been cancelled
@@ -177,34 +177,69 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		default:
 		}
 
-		if score >= beta {
+		if bestScore >= beta {
 			// If the score is greater than or equal to beta,
 			// it means that the opponent has a better move to choose.
 			// We record this information in the transposition table.
-			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
+			recordHash(depth, CUTnode, currentSearchTurn, bestScore, NULL_MOVE, board.GetTopState().ZobristKey)
 			pvPtr = this_pvPtr
 			if depth == 1 {
-				latestSearchInfo.cutNodes++
+				latestSearchInfo.debug.cutNodes++
 			}
-			return beta
+			return bestScore
 		}
-		if score > alpha { // This move is better than the current best move
+		if bestScore > alpha { // This move is better than the current best move
 			updatePVTable(this_pvPtr, move, depth)
 			nodeType = PVnode
-			alpha = score
+			alpha = bestScore
 			if plyFromRoot == 0 {
-				bestEvalThisIteration = score // Update the best evaluation score for this iteration
+				bestEvalThisIteration = bestScore // Update the best evaluation score for this iteration
 			}
 		}
 	}
 
-	for _, move := range moveList[1:] {
+	for i, move := range moveList[1:] {
+
+		var score int
+		needFullSearch := true
+
+		latestSearchInfo.debug.siblingNodes++
+
+		wasInCheck := board.InCheck()
+
 		board.MakeMove(move)
 
+		// Move extensions,
 		extension := extendSearch(board, move, numExtensions)
-		score := -board.search(depth-1+extension, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, cancelChannel)
-		if score > alpha {
-			score = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, cancelChannel)
+
+		// Late move reductions, https://www.chessprogramming.org/Late_Move_Reductions
+		var reduceAmount int8
+		if i >= 1 && depth >= 3 && !wasInCheck && !board.InCheck() && extension == 0 && probeNodeType != PVnode && !isTacticalMove(move) && !searchReduced {
+			if depth >= 6 {
+				reduceAmount = depth / 3
+			} else {
+				reduceAmount = 1
+			}
+			latestSearchInfo.debug.reducedNodes++
+			latestSearchInfo.debug.amountReduced += uint64(reduceAmount)
+			score = -board.search(depth-1-reduceAmount, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, true, cancelChannel)
+			needFullSearch = (score > alpha && score < beta)
+		}
+
+		// PVS Search, https://www.chessprogramming.org/Principal_Variation_Search
+		if needFullSearch {
+			score = -board.search(depth-1+extension, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, (reduceAmount != 0) || searchReduced, cancelChannel)
+			if reduceAmount != 0 {
+				latestSearchInfo.debug.researchedReduceNodes++
+			}
+			needFullSearch = (score > alpha && score < beta)
+		}
+
+		// Full search
+		if needFullSearch {
+			score = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, cancelChannel)
+			latestSearchInfo.debug.researchedNodes++
+			alpha = max(alpha, score)
 		}
 
 		board.UnMakeMove()
@@ -217,14 +252,14 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		}
 
 		if score >= beta {
-			recordHash(depth, CUTnode, currentSearchTurn, beta, NULL_MOVE, board.GetTopState().ZobristKey)
+			recordHash(depth, CUTnode, currentSearchTurn, score, NULL_MOVE, board.GetTopState().ZobristKey)
 			pvPtr = this_pvPtr
-			return beta
+			return score
 		}
-		if score > alpha { // This move is better than the current best move
+		if score > bestScore { // This move is better than the current best move
 			updatePVTable(this_pvPtr, move, depth)
 			nodeType = PVnode
-			alpha = score
+			bestScore = score
 			if plyFromRoot == 0 {
 				bestEvalThisIteration = score // Update the best evaluation score for this iteration
 			}
@@ -232,14 +267,14 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	}
 
 	if nodeType == ALLnode && depth == 1 {
-		latestSearchInfo.allNodes++
+		latestSearchInfo.debug.allNodes++
 	} else if nodeType == PVnode && depth == 1 {
-		latestSearchInfo.pvNodes++
+		latestSearchInfo.debug.pvNodes++
 	}
 
 	pvPtr = this_pvPtr
-	recordHash(depth, nodeType, currentSearchTurn, alpha, pv[this_pvPtr], board.GetTopState().ZobristKey) // Record the best move for this position
-	return alpha
+	recordHash(depth, nodeType, currentSearchTurn, bestScore, pv[this_pvPtr], board.GetTopState().ZobristKey) // Record the best move for this position
+	return bestScore
 }
 
 func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch int8, cancelChannel chan struct{}) int {
@@ -249,7 +284,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	default:
 	}
 
-	latestSearchInfo.qNodes++
+	latestSearchInfo.debug.qNodes++
 
 	eval, mgPhase, egPhase := board.Evaluate()
 	if eval >= beta {
@@ -279,7 +314,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	}
 
 	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:0])
-	board.moveordering(true, NULL_MOVE, NULL_MOVE, captureMoveList)
+	board.quiescence_moveordering(captureMoveList)
 
 	for _, move := range captureMoveList {
 		// Delta pruning cut
@@ -326,87 +361,6 @@ func extendSearch(board *Board, move Move, numExtensions int8) int8 {
 	return 0
 }
 
-/*
-Source: https://lup.lub.lu.se/luur/download?func=downloadFile&recordOId=9069249&fileOId=9069251
-
-MVV-LVA (MostValuable Victim – Least Valuable Aggressor). In chess, moves, where an
-opponent’s piece of high value is taken by a piece of low value of one’s own, are
-often good moves.
-
-The MVV-LVA heuristic uses this reasoning by applying a score
-to each move based on the difference in value between a taking piece and the
-piece that is taken.
-
-The higher the value of the taken piece, and the lower value of
-the taking piece, the higher the priority score.
-
-For example, a very promising move, when available, is a move where one player may take
-the opponent’s queen with their own pawn and this move is thus given the highest priority
-by the MVV-LVA heuristic.
-*/
-func (board *Board) moveordering(usePV_TT bool, PVMove Move, TTMove Move, moveList []Move) {
-	for i := range moveList {
-		if !usePV_TT {
-			if moveList[i].enc == PVMove.enc {
-				moveList[i].priority = 127
-				continue
-			}
-			if moveList[i].enc == TTMove.enc {
-				moveList[i].priority = 126
-				continue
-			}
-		}
-		var takenPiece int
-
-		switch GetFlag(moveList[i]) {
-		case captureFlag:
-			takenPiece = board.PieceInfoArr[getTargetPosition(moveList[i])].pieceTYPE
-		case epCaptureFlag:
-			takenPiece = PAWN
-		case knightPromotionFlag, bishopPromotionFlag, rookPromotionFlag, knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag:
-			moveList[i].priority = 100 // Promotions are always good
-			continue
-		case queenPromotionFlag, queenPromoCaptureFlag:
-			moveList[i].priority = 101 // Normally queen promo = best promo
-			continue
-		default:
-			continue
-		}
-
-		switch board.PieceInfoArr[getStartingPosition(moveList[i])].pieceTYPE { // Aggressor
-		case PAWN:
-			moveList[i].priority += -1
-		case KNIGHT:
-			moveList[i].priority += -3
-		case BISHOP:
-			moveList[i].priority += -3
-		case ROOK:
-			moveList[i].priority += -5
-		case QUEEN:
-			moveList[i].priority += -9
-		case KING:
-			moveList[i].priority += -10
-		}
-
-		switch takenPiece { // Victim
-		case PAWN:
-			moveList[i].priority += 10
-		case KNIGHT:
-			moveList[i].priority += 30
-		case BISHOP:
-			moveList[i].priority += 30
-		case ROOK:
-			moveList[i].priority += 50
-		case QUEEN:
-			moveList[i].priority += 90
-		}
-	}
-
-	slices.SortFunc(moveList, func(a, b Move) int {
-		return cmp.Compare(b.priority, a.priority)
-	})
-}
-
 func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
 	targetPosition := getTargetPosition(move)
 
@@ -442,7 +396,7 @@ func updatePVTable(this_pvPtr int, move Move, depth int8) {
 info depth <depth> seldepth <maxdepth searched> multipv <principal variations> score cp <score> nodes <nodecount> nps <nodes / time> time <time taken in ms> pv <pv>
 */
 func engineInfoString() (retval string) {
-	nodeCount := latestSearchInfo.allNodes + latestSearchInfo.pvNodes + latestSearchInfo.cutNodes
+	nodeCount := latestSearchInfo.debug.allNodes + latestSearchInfo.debug.pvNodes + latestSearchInfo.debug.cutNodes
 	elapsedTime := time.Since(latestSearchInfo.startTime)
 	nps := int64(float64(nodeCount) / elapsedTime.Seconds())
 	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
@@ -462,7 +416,9 @@ func engineInfoString() (retval string) {
 		latestSearchInfo.score, latestSearchInfo.leafNodes, nps, hashFill, elapsedTime.Milliseconds(), pvString)
 
 	if DebugMode {
-		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d\n", latestSearchInfo.pvNodes, 100*float32(latestSearchInfo.pvNodes)/float32(nodeCount), latestSearchInfo.allNodes, 100*float32(latestSearchInfo.allNodes)/float32(nodeCount), latestSearchInfo.cutNodes, 100*float32(latestSearchInfo.cutNodes)/float32(nodeCount), latestSearchInfo.qNodes-latestSearchInfo.leafNodes)
+		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d\n", latestSearchInfo.debug.pvNodes, 100*float32(latestSearchInfo.debug.pvNodes)/float32(nodeCount), latestSearchInfo.debug.allNodes, 100*float32(latestSearchInfo.debug.allNodes)/float32(nodeCount), latestSearchInfo.debug.cutNodes, 100*float32(latestSearchInfo.debug.cutNodes)/float32(nodeCount), latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes)
+		retval += fmt.Sprintf("\nDebug Info of sibling nodes:\n\tsiblingNodes: %d\n\tsiblingNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.siblingNodes, latestSearchInfo.debug.researchedNodes, 100*float32(latestSearchInfo.debug.researchedNodes)/float32(latestSearchInfo.debug.siblingNodes))
+		retval += fmt.Sprintf("\nDebug Info of reduced nodes:\n\treducedNodes: %d(%0.2f%%)\n\taverage Reduce Amount: %0.2f\n\treducedNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.reducedNodes, 100*float32(latestSearchInfo.debug.reducedNodes)/float32(nodeCount), float32(latestSearchInfo.debug.amountReduced)/float32(latestSearchInfo.debug.reducedNodes), latestSearchInfo.debug.researchedReduceNodes, 100*float32(latestSearchInfo.debug.researchedReduceNodes)/float32(latestSearchInfo.debug.reducedNodes))
 	}
 
 	return retval
