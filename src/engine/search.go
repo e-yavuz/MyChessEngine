@@ -30,6 +30,7 @@ type searchInfo struct {
 
 type debugInfo struct {
 	qNodes                uint64
+	qNodeDeltaPrunes      uint64
 	pvNodes               uint64
 	allNodes              uint64
 	cutNodes              uint64
@@ -144,7 +145,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	}
 
 	moveList := board.GenerateMoves(ALL, searchMovePool[plyFromRoot][:0])
-	board.moveordering(false, savedPV[plyFromRoot], probeMove, moveList)
+	board.moveordering(savedPV[plyFromRoot], probeMove, moveList)
 
 	if len(moveList) == 0 {
 		latestSearchInfo.leafNodes++
@@ -215,11 +216,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		// Late move reductions, https://www.chessprogramming.org/Late_Move_Reductions
 		var reduceAmount int8
 		if i >= 1 && depth >= 3 && !wasInCheck && !board.InCheck() && extension == 0 && probeNodeType != PVnode && !isTacticalMove(move) && !searchReduced {
-			if depth >= 6 {
-				reduceAmount = depth / 3
-			} else {
-				reduceAmount = 1
-			}
+			reduceAmount = depth / 3 // Senpai engine implementation
 			latestSearchInfo.debug.reducedNodes++
 			latestSearchInfo.debug.amountReduced += uint64(reduceAmount)
 			score = -board.search(depth-1-reduceAmount, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, true, cancelChannel)
@@ -319,6 +316,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 	for _, move := range captureMoveList {
 		// Delta pruning cut
 		if mgPhase > LATE_GAME_PHASE_CUTOFF && getTargetPieceValue(board, move, egPhase) < deltaPrune {
+			latestSearchInfo.debug.qNodeDeltaPrunes++
 			continue
 		}
 
@@ -410,13 +408,21 @@ func engineInfoString() (retval string) {
 	}
 	// Strip surrounding whitespace from PV string
 	pvString = pvString[:len(pvString)-1]
+	checkmateScore := scoreIsCheckmate(latestSearchInfo.score)
 
-	retval += fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
-		latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
-		latestSearchInfo.score, latestSearchInfo.leafNodes, nps, hashFill, elapsedTime.Milliseconds(), pvString)
+	if checkmateScore != 0 {
+		retval += fmt.Sprintf("info depth %d seldepth %d multipv %d score mate %d nodes %d nps %d hashfull %d time %d pv %s",
+			latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
+			checkmateScore, latestSearchInfo.leafNodes, nps, hashFill, elapsedTime.Milliseconds(), pvString)
+	} else {
+		retval += fmt.Sprintf("info depth %d seldepth %d multipv %d score cp %d nodes %d nps %d hashfull %d time %d pv %s",
+			latestSearchInfo.depth, latestSearchInfo.seldepth+latestSearchInfo.depth, latestSearchInfo.multipv,
+			latestSearchInfo.score, latestSearchInfo.leafNodes, nps, hashFill, elapsedTime.Milliseconds(), pvString)
+	}
 
 	if DebugMode {
-		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n\tqNodes: %d\n", latestSearchInfo.debug.pvNodes, 100*float32(latestSearchInfo.debug.pvNodes)/float32(nodeCount), latestSearchInfo.debug.allNodes, 100*float32(latestSearchInfo.debug.allNodes)/float32(nodeCount), latestSearchInfo.debug.cutNodes, 100*float32(latestSearchInfo.debug.cutNodes)/float32(nodeCount), latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes)
+		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n", latestSearchInfo.debug.pvNodes, 100*float32(latestSearchInfo.debug.pvNodes)/float32(nodeCount), latestSearchInfo.debug.allNodes, 100*float32(latestSearchInfo.debug.allNodes)/float32(nodeCount), latestSearchInfo.debug.cutNodes, 100*float32(latestSearchInfo.debug.cutNodes)/float32(nodeCount))
+		retval += fmt.Sprintf("\nDebug Info of quiescence nodes:\n\tqNodes: %d\n\tqNodes delta Pruned: %d(%0.2f%%)\n", latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes, latestSearchInfo.debug.qNodeDeltaPrunes, 100*float32(latestSearchInfo.debug.qNodeDeltaPrunes)/float32(latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes))
 		retval += fmt.Sprintf("\nDebug Info of sibling nodes:\n\tsiblingNodes: %d\n\tsiblingNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.siblingNodes, latestSearchInfo.debug.researchedNodes, 100*float32(latestSearchInfo.debug.researchedNodes)/float32(latestSearchInfo.debug.siblingNodes))
 		retval += fmt.Sprintf("\nDebug Info of reduced nodes:\n\treducedNodes: %d(%0.2f%%)\n\taverage Reduce Amount: %0.2f\n\treducedNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.reducedNodes, 100*float32(latestSearchInfo.debug.reducedNodes)/float32(nodeCount), float32(latestSearchInfo.debug.amountReduced)/float32(latestSearchInfo.debug.reducedNodes), latestSearchInfo.debug.researchedReduceNodes, 100*float32(latestSearchInfo.debug.researchedReduceNodes)/float32(latestSearchInfo.debug.reducedNodes))
 	}
