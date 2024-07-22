@@ -7,12 +7,41 @@ const (
 	ALL
 )
 
+var knightMoveBoard = [64]BitBoard{}
+var kingMoveBoard = [64]BitBoard{}
+
+var friendBitboard BitBoard
+var enemyBitBoard BitBoard
+var totalBitBoard BitBoard
+
 const MAX_MOVE_COUNT = 218
 const MAX_CAPTURE_COUNT = 74
 const MAX_QUIET_COUNT = MAX_MOVE_COUNT - MAX_CAPTURE_COUNT // 144
 
+func init() {
+	for i := 0; i < 64; i++ {
+		bitboard := BitBoard(1) << i
+		knightMoveBoard[i] = ((Shift(bitboard, N+N+E) & ^Col1Full) | //NNE
+			(Shift(bitboard, N+N+W) & ^Col8Full) | //NNW
+			(Shift(bitboard, S+S+E) & ^Col1Full) | //SSE
+			(Shift(bitboard, S+S+W) & ^Col8Full) | //SSW
+			(Shift(bitboard, E+E+S) & ^(Col1Full | Shift(Col1Full, E))) | //EES
+			(Shift(bitboard, E+E+N) & ^(Col1Full | Shift(Col1Full, E))) | //EEN
+			(Shift(bitboard, W+W+S) & ^(Col8Full | Shift(Col8Full, W))) | //WWS
+			(Shift(bitboard, W+W+N) & ^(Col8Full | Shift(Col8Full, W)))) //WWN
+		kingMoveBoard[i] = Shift(bitboard, N) |
+			Shift(bitboard, S) |
+			(Shift(bitboard, E) & ^Col1Full) |
+			(Shift(bitboard, W) & ^Col8Full) |
+			(Shift(bitboard, N+E) & ^Col1Full) |
+			(Shift(bitboard, N+W) & ^Col8Full) |
+			(Shift(bitboard, S+E) & ^Col1Full) |
+			(Shift(bitboard, S+W) & ^Col8Full)
+	}
+}
+
 func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoard, pieceType int, genType int, moveList *[]Move) {
-	currentState := board.GetTopState()
+	// currentState := board.GetTopState()
 	if thisBitBoard == 0 {
 		return
 	}
@@ -25,24 +54,12 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 		flag = quietFlag
 	}
 
-	// Sliding pieces variables
-	var totalOccupancyBitBoard, friendlyOccupancyBitBoard, enemyOccupancyBitBoard BitBoard
-
-	if currentState.IsWhiteTurn {
-		friendlyOccupancyBitBoard = board.W.OccupancyBitBoard()
-		enemyOccupancyBitBoard = board.B.OccupancyBitBoard()
-	} else {
-		friendlyOccupancyBitBoard = board.B.OccupancyBitBoard()
-		enemyOccupancyBitBoard = board.W.OccupancyBitBoard()
-	}
-	totalOccupancyBitBoard = friendlyOccupancyBitBoard | enemyOccupancyBitBoard
-
 	switch pieceType {
 	case ROOK:
 		for from := PopLSB(&thisBitBoard); from != INVALID_POSITION; from = PopLSB(&thisBitBoard) {
 			validPositions := GetRookMoves(from,
-				RookMask(from)&totalOccupancyBitBoard) // Possible positions &'s with total occupancy = blockers
-			validPositions &= ^friendlyOccupancyBitBoard // Removes possible captures that would be captures of friendly pieces
+				RookMask(from)&totalBitBoard) // Possible positions &'s with total occupancy = blockers
+			validPositions &= ^friendBitboard // Removes possible captures that would be captures of friendly pieces
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
@@ -53,8 +70,8 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 	case BISHOP:
 		for from := PopLSB(&thisBitBoard); from != INVALID_POSITION; from = PopLSB(&thisBitBoard) {
 			validPositions := GetBishopMoves(from,
-				BishopMask(from)&totalOccupancyBitBoard) // Possible positions &'s with total occupancy = blockers
-			validPositions &= ^friendlyOccupancyBitBoard // Removes possible captures that would be captures of friendly pieces
+				BishopMask(from)&totalBitBoard) // Possible positions &'s with total occupancy = blockers
+			validPositions &= ^friendBitboard // Removes possible captures that would be captures of friendly pieces
 			// this is a result of including friendly piece captures in potential moves for faster magic BB's
 			validPositions &= targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
@@ -65,11 +82,11 @@ func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoar
 	case QUEEN:
 		for from := PopLSB(&thisBitBoard); from != INVALID_POSITION; from = PopLSB(&thisBitBoard) {
 			rookMoves := GetRookMoves(from,
-				RookMask(from)&totalOccupancyBitBoard)
+				RookMask(from)&totalBitBoard)
 			bishopMoves := GetBishopMoves(from,
-				BishopMask(from)&totalOccupancyBitBoard)
+				BishopMask(from)&totalBitBoard)
 			// queen = rook + bishop!
-			validPositions := (rookMoves | bishopMoves) & ^friendlyOccupancyBitBoard & targetBitBoard
+			validPositions := (rookMoves | bishopMoves) & ^friendBitboard & targetBitBoard
 			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
 				*moveList = append(*moveList, NewMove(from, to, flag))
 			}
@@ -106,64 +123,48 @@ func generateNonSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitB
 			eastCapturePromo := eastCapture & (Row8Full | Row1Full)
 			westCapturePromo := westCapture & (Row8Full | Row1Full)
 			// Consider both knights and queen for possibility to be promotion piece
-			moveListHelper(eastCapturePromo, pawnPushDirection+E, knightPromoCaptureFlag, moveList)
-			moveListHelper(eastCapturePromo, pawnPushDirection+E, queenPromoCaptureFlag, moveList)
-			moveListHelper(eastCapturePromo, pawnPushDirection+E, rookPromoCaptureFlag, moveList)
-			moveListHelper(eastCapturePromo, pawnPushDirection+E, bishopPromoCaptureFlag, moveList)
-			moveListHelper(westCapturePromo, pawnPushDirection+W, knightPromoCaptureFlag, moveList)
-			moveListHelper(westCapturePromo, pawnPushDirection+W, queenPromoCaptureFlag, moveList)
-			moveListHelper(westCapturePromo, pawnPushDirection+W, rookPromoCaptureFlag, moveList)
-			moveListHelper(westCapturePromo, pawnPushDirection+W, bishopPromoCaptureFlag, moveList)
+			moveListHelper(eastCapturePromo, pawnPushDirection+E, moveList,
+				knightPromoCaptureFlag, queenPromoCaptureFlag,
+				rookPromoCaptureFlag, bishopPromoCaptureFlag)
+			moveListHelper(westCapturePromo, pawnPushDirection+W, moveList,
+				knightPromoCaptureFlag, queenPromoCaptureFlag,
+				rookPromoCaptureFlag, bishopPromoCaptureFlag)
 			// Check if en passant is even possible this turn
 			var eastCaptureEnPassant, westCaptureEnPassant BitBoard
 			if currentState.EnPassantPosition != INVALID_POSITION {
 				eastCaptureEnPassant = Shift(thisBitBoard&^Col8Full, pawnPushDirection+E) & (1 << currentState.EnPassantPosition) // If so see if
 				westCaptureEnPassant = Shift(thisBitBoard&^Col1Full, pawnPushDirection+W) & (1 << currentState.EnPassantPosition) // en passant exists on capture spots
-				moveListHelper(eastCaptureEnPassant, pawnPushDirection+E, epCaptureFlag, moveList)
-				moveListHelper(westCaptureEnPassant, pawnPushDirection+W, epCaptureFlag, moveList)
+				moveListHelper(eastCaptureEnPassant, pawnPushDirection+E, moveList, epCaptureFlag)
+				moveListHelper(westCaptureEnPassant, pawnPushDirection+W, moveList, epCaptureFlag)
 			}
 			// Finally consider all remaining capture moves by inverting the special
 			// ones along with AND'ing on top of original
 			eastCaptureQuiet := eastCapture & ^eastCapturePromo & ^eastCaptureEnPassant
-			moveListHelper(eastCaptureQuiet, pawnPushDirection+E, captureFlag, moveList)
+			moveListHelper(eastCaptureQuiet, pawnPushDirection+E, moveList, captureFlag)
 			westCaptureQuiet := westCapture & ^westCapturePromo & ^westCaptureEnPassant
-			moveListHelper(westCaptureQuiet, pawnPushDirection+W, captureFlag, moveList)
+			moveListHelper(westCaptureQuiet, pawnPushDirection+W, moveList, captureFlag)
 		case QUIET:
 			// Consider all pawns not on Row's 1 and 8
 			// (idk abt this being needed as you always promote pawns on these rows?)
 			// then move them inwards 1 space and AND with possible positons to land on with targetBitBoard
 			singlePush := Shift(thisBitBoard & ^Row1Full & ^Row8Full, pawnPushDirection) & targetBitBoard
 			// Consider all moves that land on the non-promotion squares as quiet
-			moveListHelper(singlePush&NonPromotionFull, pawnPushDirection, quietFlag, moveList)
+			moveListHelper(singlePush&NonPromotionFull, pawnPushDirection, moveList, quietFlag)
 			// Consider all moves that land on the promotion squares and flag with promotion flags
-			moveListHelper(singlePush&PromotionFull, pawnPushDirection, knightPromotionFlag, moveList)
-			moveListHelper(singlePush&PromotionFull, pawnPushDirection, queenPromotionFlag, moveList)
-			moveListHelper(singlePush&PromotionFull, pawnPushDirection, bishopPromotionFlag, moveList)
-			moveListHelper(singlePush&PromotionFull, pawnPushDirection, rookPromotionFlag, moveList)
+			moveListHelper(singlePush&PromotionFull, pawnPushDirection, moveList,
+				knightPromotionFlag, queenPromotionFlag, rookPromotionFlag, bishopPromotionFlag)
 			// Take all pawn's on Rows 2 and 7 (eligible for double pawn push)
 			// then see if they can push forward one square onto an unoccupied space
 			// and that it is into the interior with NonPromotionFull (smart doggo moment :D)
 			// Finally, push inwards 1 square again and see if the output is a target space
 			doublePush := Shift(Shift(
 				thisBitBoard&(Row2Full|Row7Full),
-				pawnPushDirection)&NonPromotionFull&^(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard()),
+				pawnPushDirection)&NonPromotionFull&^(totalBitBoard),
 				pawnPushDirection) & targetBitBoard
-			moveListHelper(doublePush, pawnPushDirection*2, doublePawnPushFlag, moveList)
+			moveListHelper(doublePush, pawnPushDirection*2, moveList, doublePawnPushFlag)
 		}
 
 	case KNIGHT:
-		NNE := Shift(thisBitBoard, N+N+E) & ^Col1Full & targetBitBoard
-		NNW := Shift(thisBitBoard, N+N+W) & ^Col8Full & targetBitBoard
-
-		SSE := Shift(thisBitBoard, S+S+E) & ^Col1Full & targetBitBoard
-		SSW := Shift(thisBitBoard, S+S+W) & ^Col8Full & targetBitBoard
-
-		EES := Shift(thisBitBoard, E+E+S) & ^(Col1Full | Shift(Col1Full, E)) & targetBitBoard
-		EEN := Shift(thisBitBoard, E+E+N) & ^(Col1Full | Shift(Col1Full, E)) & targetBitBoard
-
-		WWS := Shift(thisBitBoard, W+W+S) & ^(Col8Full | Shift(Col8Full, W)) & targetBitBoard
-		WWN := Shift(thisBitBoard, W+W+N) & ^(Col8Full | Shift(Col8Full, W)) & targetBitBoard
-
 		var knightFlag Flag
 		switch genType {
 		case CAPTURE:
@@ -171,14 +172,16 @@ func generateNonSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitB
 		case QUIET:
 			knightFlag = quietFlag
 		}
-		moveListHelper(NNE, N+N+E, knightFlag, moveList)
-		moveListHelper(NNW, N+N+W, knightFlag, moveList)
-		moveListHelper(SSE, S+S+E, knightFlag, moveList)
-		moveListHelper(SSW, S+S+W, knightFlag, moveList)
-		moveListHelper(EES, E+E+S, knightFlag, moveList)
-		moveListHelper(EEN, E+E+N, knightFlag, moveList)
-		moveListHelper(WWS, W+W+S, knightFlag, moveList)
-		moveListHelper(WWN, W+W+N, knightFlag, moveList)
+
+		for from := PopLSB(&thisBitBoard); from != INVALID_POSITION; from = PopLSB(&thisBitBoard) {
+			// Generate all possible knight moves from the current position
+			// then AND with the targetBitBoard to see if it is a valid move
+			// Finally, add to the moveList with the appropriate flag
+			validPositions := knightMoveBoard[from] & targetBitBoard
+			for to := PopLSB(&validPositions); to != INVALID_POSITION; to = PopLSB(&validPositions) {
+				*moveList = append(*moveList, NewMove(from, to, knightFlag))
+			}
+		}
 	}
 }
 
@@ -209,58 +212,43 @@ func enemyPieceAttackBitBoard(board *Board) (retval BitBoard) {
 
 	//Knights
 	if enemyPieces.Knight != 0 {
-		retval |= Shift(enemyPieces.Knight, N+N+E) & ^Col1Full                        //NNE
-		retval |= Shift(enemyPieces.Knight, N+N+W) & ^Col8Full                        //NNW
-		retval |= Shift(enemyPieces.Knight, S+S+E) & ^Col1Full                        //SSE
-		retval |= Shift(enemyPieces.Knight, S+S+W) & ^Col8Full                        //SSW
-		retval |= Shift(enemyPieces.Knight, E+E+S) & ^(Col1Full | Shift(Col1Full, E)) //EES
-		retval |= Shift(enemyPieces.Knight, E+E+N) & ^(Col1Full | Shift(Col1Full, E)) //EEN
-		retval |= Shift(enemyPieces.Knight, W+W+S) & ^(Col8Full | Shift(Col8Full, W)) //WWS
-		retval |= Shift(enemyPieces.Knight, W+W+N) & ^(Col8Full | Shift(Col8Full, W)) //WWN
+		for from := PopLSB(&enemyPieces.Knight); from != INVALID_POSITION; from = PopLSB(&enemyPieces.Knight) {
+			retval |= knightMoveBoard[from]
+		}
 	}
 
-	// Sliding enemyPieces variables, total occypancy - our king to prevent moving along a check ray
-	totalOccupancyBitBoard := (board.W.OccupancyBitBoard() | board.B.OccupancyBitBoard()) & ^friendlyKing
+	// Sliding enemyPieces variables, total occupancy - our king to prevent moving along a check ray
+	modifiedTotal := totalBitBoard & ^friendlyKing
 
 	// Rook
 	if enemyPieces.Rook != 0 {
-		locations := enemyPieces.Rook
-		for from := PopLSB(&locations); from != INVALID_POSITION; from = PopLSB(&locations) {
+		for from := PopLSB(&enemyPieces.Rook); from != INVALID_POSITION; from = PopLSB(&enemyPieces.Rook) {
 			retval |= GetRookMoves(from,
-				RookMask(from)&totalOccupancyBitBoard)
+				RookMask(from)&modifiedTotal)
 		}
 	}
 
 	// Bishop
 	if enemyPieces.Bishop != 0 {
-		locations := enemyPieces.Bishop
-		for from := PopLSB(&locations); from != INVALID_POSITION; from = PopLSB(&locations) {
+		for from := PopLSB(&enemyPieces.Bishop); from != INVALID_POSITION; from = PopLSB(&enemyPieces.Bishop) {
 			retval |= GetBishopMoves(from,
-				BishopMask(from)&totalOccupancyBitBoard)
+				BishopMask(from)&modifiedTotal)
 		}
 	}
 
 	// Queen
 	if enemyPieces.Queen != 0 {
-		locations := enemyPieces.Queen
-		for from := PopLSB(&locations); from != INVALID_POSITION; from = PopLSB(&locations) {
+		for from := PopLSB(&enemyPieces.Queen); from != INVALID_POSITION; from = PopLSB(&enemyPieces.Queen) {
 			rookMoves := GetRookMoves(from,
-				RookMask(from)&totalOccupancyBitBoard)
+				RookMask(from)&modifiedTotal)
 			bishopMoves := GetBishopMoves(from,
-				BishopMask(from)&totalOccupancyBitBoard)
+				BishopMask(from)&modifiedTotal)
 			retval |= (rookMoves | bishopMoves)
 		}
 	}
 
 	// King
-	retval |= Shift(enemyPieces.King, N) |
-		Shift(enemyPieces.King, S) |
-		(Shift(enemyPieces.King, E) & ^Col1Full) |
-		(Shift(enemyPieces.King, W) & ^Col8Full) |
-		(Shift(enemyPieces.King, N+E) & ^Col1Full) |
-		(Shift(enemyPieces.King, N+W) & ^Col8Full) |
-		(Shift(enemyPieces.King, S+E) & ^Col1Full) |
-		(Shift(enemyPieces.King, S+W) & ^Col8Full)
+	retval |= kingMoveBoard[PopLSB(&enemyPieces.King)]
 
 	return retval
 }
@@ -287,15 +275,7 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		from = PopLSB(&temp)
 	}
 
-	validPositions := Shift(pieces.King, N) |
-		Shift(pieces.King, S) |
-		(Shift(pieces.King, E) & ^Col1Full) |
-		(Shift(pieces.King, W) & ^Col8Full) |
-		(Shift(pieces.King, N+E) & ^Col1Full) |
-		(Shift(pieces.King, N+W) & ^Col8Full) |
-		(Shift(pieces.King, S+E) & ^Col1Full) |
-		(Shift(pieces.King, S+W) & ^Col8Full)
-	validPositions &= targetBitBoard
+	validPositions := kingMoveBoard[from] & targetBitBoard
 
 	var kingFlag Flag
 	switch genType {
@@ -313,7 +293,7 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 		// Check queen side castle empty + king can move at least 2 to the left
 		if !inCheck &&
 			castleQueen &&
-			(getIntermediaryRay(from, from-4)&(board.W.OccupancyBitBoard()|board.B.OccupancyBitBoard())) == 0 &&
+			(getIntermediaryRay(from, from-4)&(totalBitBoard)) == 0 &&
 			(getIntermediaryRay(from, from-3)&targetBitBoard) == getIntermediaryRay(from, from-3) {
 			*moveList = append(*moveList, NewMove(from, from-2, queenCastleFlag))
 		}
@@ -383,15 +363,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 
 	// Knight
 	if enemyPieces.Knight != 0 {
-		validCaptures := ((Shift(friendlyKing, N+N+E) & ^Col1Full) | //NNE
-			(Shift(friendlyKing, N+N+W) & ^Col8Full) | //NNW
-			(Shift(friendlyKing, S+S+E) & ^Col1Full) | //SSE
-			(Shift(friendlyKing, S+S+W) & ^Col8Full) | //SSW
-			(Shift(friendlyKing, E+E+S) & ^(Col1Full | Shift(Col1Full, E))) | //EES
-			(Shift(friendlyKing, E+E+N) & ^(Col1Full | Shift(Col1Full, E))) | //EEN
-			(Shift(friendlyKing, W+W+S) & ^(Col8Full | Shift(Col8Full, W))) | //WWS
-			(Shift(friendlyKing, W+W+N) & ^(Col8Full | Shift(Col8Full, W)))) & //WWN
-			enemyPieces.Knight // All possible knight positions
+		validCaptures := knightMoveBoard[from] & enemyPieces.Knight // All possible knight positions
 		for to = PopLSB(&validCaptures); to != INVALID_POSITION; to = PopLSB(&validCaptures) {
 			*checkingPieces = append(*checkingPieces,
 				CheckerInfo{
@@ -400,19 +372,16 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 		}
 	}
 
-	friendlyOccupancyBitBoard := friendlyPieces.OccupancyBitBoard()
-	enemyOccupancyBitBoard := enemyPieces.OccupancyBitBoard()
-
 	// Rook/Queen
 	if enemyPieces.Rook != 0 || enemyPieces.Queen != 0 {
-		possibleCheckers := GetRookMoves(from, RookMask(from)&enemyOccupancyBitBoard)
+		possibleCheckers := GetRookMoves(from, RookMask(from)&enemyBitBoard)
 		possibleCheckers &= enemyPieces.Queen | enemyPieces.Rook
 
 		for to = PopLSB(&possibleCheckers); to != INVALID_POSITION; to = PopLSB(&possibleCheckers) {
 			checkRay := getIntermediaryRay(from, to)
 			checkerPieceInfo := CheckerInfo{*board.PieceInfoArr[to], to, checkRay}
 
-			checkRayPinned := checkRay & friendlyOccupancyBitBoard
+			checkRayPinned := checkRay & friendBitboard
 			friendlyPinnedPosition := PopLSB(&checkRayPinned)
 
 			if friendlyPinnedPosition == INVALID_POSITION { // No pinned pieces -> + to CheckerInfo
@@ -433,14 +402,14 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 
 	// Bishop/Queen
 	if enemyPieces.Bishop != 0 || enemyPieces.Queen != 0 {
-		possibleCheckers := GetBishopMoves(from, BishopMask(from)&enemyOccupancyBitBoard)
+		possibleCheckers := GetBishopMoves(from, BishopMask(from)&enemyBitBoard)
 		possibleCheckers &= enemyPieces.Queen | enemyPieces.Bishop
 
 		for to = PopLSB(&possibleCheckers); to != INVALID_POSITION; to = PopLSB(&possibleCheckers) {
 			checkRay := getIntermediaryRay(from, to)
 			checkerPieceInfo := CheckerInfo{*board.PieceInfoArr[to], to, checkRay}
 
-			checkRayPinned := checkRay & friendlyOccupancyBitBoard
+			checkRayPinned := checkRay & friendBitboard
 			friendlyPinnedPosition := PopLSB(&checkRayPinned)
 
 			if friendlyPinnedPosition == INVALID_POSITION { // No pinned pieces -> + to CheckerInfo
@@ -512,6 +481,10 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 		return moveList
 	}
 
+	friendBitboard = friendlyPieces.OccupancyBitBoard()
+	enemyBitBoard = enemyPieces.OccupancyBitBoard()
+	totalBitBoard = friendBitboard | enemyBitBoard
+
 	pinnedPieces, pinnedPiecesBitBoard, checkingPieces := generateCheck(board)
 	inCheck := len(*checkingPieces) > 0
 
@@ -520,9 +493,9 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 		// No checkers
 		switch genType {
 		case CAPTURE:
-			targetBitBoard = enemyPieces.OccupancyBitBoard()
+			targetBitBoard = enemyBitBoard
 		case QUIET:
-			targetBitBoard = ^(friendlyPieces.OccupancyBitBoard() | enemyPieces.OccupancyBitBoard())
+			targetBitBoard = ^totalBitBoard
 		}
 		generatePinned(board, genType, pinnedPieces, &moveList)
 		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
@@ -549,13 +522,13 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 	switch genType {
 	case CAPTURE:
 		generateKing(board,
-			enemyPieces.OccupancyBitBoard() & ^enemyPieceAttackBitBoard(board),
+			enemyBitBoard & ^enemyPieceAttackBitBoard(board),
 			CAPTURE,
 			inCheck,
 			&moveList)
 	case QUIET:
 		generateKing(board,
-			^(friendlyPieces.OccupancyBitBoard()|enemyPieces.OccupancyBitBoard()) & ^enemyPieceAttackBitBoard(board),
+			^(totalBitBoard) & ^enemyPieceAttackBitBoard(board),
 			QUIET,
 			inCheck,
 			&moveList)
@@ -565,92 +538,75 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 }
 
 // Helper function to generate moves for a bitboard of pieces given a static direction
-func moveListHelper(bitboard BitBoard, moveDir Direction, flag Flag, moveList *[]Move) {
+func moveListHelper(bitboard BitBoard, moveDir Direction, moveList *[]Move, flags ...Flag) {
 	for to := PopLSB(&bitboard); to != INVALID_POSITION; to = PopLSB(&bitboard) {
-		*moveList = append(*moveList, NewMove(to-Position(moveDir), to, flag))
+		for _, flag := range flags {
+			*moveList = append(*moveList, NewMove(to-Position(moveDir), to, flag))
+		}
 	}
 }
 
 // Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
-func (board *Board) isCheck() bool {
+func (board *Board) isAttacked(position Position, color int) bool {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
-	currentState := board.GetTopState()
+	var enemyPieces *Pieces
 
-	var enemyPieces, friendlyPieces *Pieces
-	var from Position
-	var friendlyKing BitBoard
+	targetBitboard := BitBoard(1) << position
+	totalBitBoard := board.W.OccupancyBitBoard() | board.B.OccupancyBitBoard()
 	// Get the pieces that will generate moves
-	if currentState.IsWhiteTurn {
-		friendlyPieces = &board.W
+	if color == WHITE {
+		enemyPieces = &board.W
+	} else if color == BLACK {
 		enemyPieces = &board.B
 	} else {
-		friendlyPieces = &board.B
-		enemyPieces = &board.W
-	}
-
-	{
-		friendlyKing = friendlyPieces.King
-		if friendlyKing == 0 {
-			return true
-		}
-		temp := friendlyKing
-		from = PopLSB(&temp)
+		panic("Wrong color value given in isAttacked()")
 	}
 
 	// Idea is to treat king as every possible non-king enemy piece,
 	// then seeing if a reversal of the capture is possible -> "captured" piece has the king in check
+	var attackers BitBoard
 
 	// Pawn
 	if enemyPieces.Pawn != 0 {
 		var pawnPushDirection Direction
-		if currentState.IsWhiteTurn {
-			pawnPushDirection = N
-		} else {
+		if color == WHITE {
 			pawnPushDirection = S
+		} else if color == BLACK {
+			pawnPushDirection = N
 		}
 		// Check for possible pawn captures
 		// inverting by side columns to prevent going off the board
-		validCaptures := (Shift(friendlyKing, pawnPushDirection+E) & enemyPieces.Pawn &^ Col1Full) |
-			(Shift(friendlyKing, pawnPushDirection+W) & enemyPieces.Pawn &^ Col8Full)
-		if validCaptures > 0 {
+		attackers = (Shift(targetBitboard, pawnPushDirection+E) & enemyPieces.Pawn &^ Col1Full) |
+			(Shift(targetBitboard, pawnPushDirection+W) & enemyPieces.Pawn &^ Col8Full)
+		if attackers != 0 {
 			return true
 		}
 	}
 
 	// Knight
 	if enemyPieces.Knight != 0 {
-		validCaptures := ((Shift(friendlyKing, N+N+E) & ^Col1Full) | //NNE
-			(Shift(friendlyKing, N+N+W) & ^Col8Full) | //NNW
-			(Shift(friendlyKing, S+S+E) & ^Col1Full) | //SSE
-			(Shift(friendlyKing, S+S+W) & ^Col8Full) | //SSW
-			(Shift(friendlyKing, E+E+S) & ^(Col1Full | Shift(Col1Full, E))) | //EES
-			(Shift(friendlyKing, E+E+N) & ^(Col1Full | Shift(Col1Full, E))) | //EEN
-			(Shift(friendlyKing, W+W+S) & ^(Col8Full | Shift(Col8Full, W))) | //WWS
-			(Shift(friendlyKing, W+W+N) & ^(Col8Full | Shift(Col8Full, W)))) & //WWN
-			enemyPieces.Knight // All possible knight positions
-		if validCaptures > 0 {
+		attackers := knightMoveBoard[position] & enemyPieces.Knight // All possible knight positions
+		if attackers > 0 {
 			return true
 		}
 	}
 
-	totalOccupancyBitBoard := enemyPieces.OccupancyBitBoard() | friendlyPieces.OccupancyBitBoard()
-
 	// Rook/Queen
 	if enemyPieces.Rook != 0 || enemyPieces.Queen != 0 {
-		possibleCheckers := GetRookMoves(from, RookMask(from)&totalOccupancyBitBoard)
-		possibleCheckers &= enemyPieces.Queen | enemyPieces.Rook
+		attackers := GetRookMoves(position, RookMask(position)&totalBitBoard)
+		attackers &= enemyPieces.Queen | enemyPieces.Rook
 
-		if possibleCheckers > 0 {
+		if attackers > 0 {
 			return true
 		}
 	}
 
 	// Bishop/Queen
 	if enemyPieces.Bishop != 0 || enemyPieces.Queen != 0 {
-		possibleCheckers := GetBishopMoves(from, BishopMask(from)&totalOccupancyBitBoard)
-		possibleCheckers &= enemyPieces.Queen | enemyPieces.Bishop
+		attackers := GetBishopMoves(position, BishopMask(position)&totalBitBoard)
+		attackers &= enemyPieces.Queen | enemyPieces.Bishop
 
-		if possibleCheckers > 0 {
+		if attackers > 0 {
 			return true
 		}
 	}

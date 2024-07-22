@@ -8,9 +8,6 @@ import (
 
 var perftMoveListPool [32][MAX_MOVE_COUNT]Move
 
-func init() {
-}
-
 func perft(board *Board, ply int, rootLevel bool) (retval uint64, rootNodes map[string]uint64) {
 	if ply == 0 {
 		return 1, nil
@@ -74,7 +71,7 @@ func Test_StartPosition(t *testing.T) {
 	if perftOut != 119060324 {
 		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "perft(test, 6)", 119060324, perftOut, rootNodes)
 	}
-	fmt.Printf("Speed: %d Nodes/sec", 1000*uint64(float64(perftOut)/float64(time.Now().UnixMilli()-startTime)))
+	fmt.Printf("Speed: %d Nodes/sec\n", 1000*uint64(float64(perftOut)/float64(time.Now().UnixMilli()-startTime)))
 }
 
 func Test_Position5(t *testing.T) {

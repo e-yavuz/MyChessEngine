@@ -295,13 +295,22 @@ func (board *Board) MakeMove(move Move) {
 		inCheck:           currentState.inCheck,
 	}
 
-	if !currentState.IsWhiteTurn {
+	// Used at bottom of function to determine if king is in check
+	var enemyColor int
+	var kingBitBoard BitBoard
+
+	if st.IsWhiteTurn {
 		st.TurnCounter += 1
+		enemyColor = BLACK
+		kingBitBoard = board.W.King
+	} else {
+		enemyColor = WHITE
+		kingBitBoard = board.B.King
 	}
 
 	if move == NULL_MOVE {
 		board.pushNewState(st)
-		st.inCheck = board.isCheck()
+		st.inCheck = board.isAttacked(PopLSB(&kingBitBoard), enemyColor)
 		return
 	}
 
@@ -432,7 +441,7 @@ func (board *Board) MakeMove(move Move) {
 	}
 
 	board.pushNewState(st)
-	st.inCheck = board.isCheck()
+	st.inCheck = board.isAttacked(PopLSB(&kingBitBoard), enemyColor)
 	board.updateZobristHash()
 	board.RepetitionPositionHistory[board.GetTopState().ZobristKey] += 1
 }
