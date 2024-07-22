@@ -24,3 +24,15 @@ v6
 
 v7
     +PV move ordering
+
+v8
+    +Delta Pruning & PV Table & Use TT Move + PV move from table in Move order
+
+v9
+    +Principal Variation Search
+
+v10
+    +Fixed bug in PeSTO table **explained in git logs**
+
+v11
+    +Fail-soft & LMR > 2 moves
