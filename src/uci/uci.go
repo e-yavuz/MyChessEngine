@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v10 (Fixed bug in PeSTO table **explained in git logs**)"
+	name = "ChessEngineEmre v12a (Modified mvv_lva priority into a table, improved movegen speed with Knight + King table and global variable occupancy bitboards)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
@@ -268,11 +268,11 @@ func commandGo(text string) (engine.Move, error) {
 	for i := 0; i < len(textArr); i++ {
 		switch textArr[i] {
 		case "wtime":
-			if gameBoard.GetTopState().IsWhiteTurn {
+			if gameBoard.GetTopState().TurnColor == engine.WHITE {
 				timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
 			}
 		case "btime":
-			if !gameBoard.GetTopState().IsWhiteTurn {
+			if gameBoard.GetTopState().TurnColor == engine.BLACK {
 				timeInMilliseconds, _ = strconv.ParseInt(textArr[i+1], 10, 64)
 			}
 		case "movetime":
