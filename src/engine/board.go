@@ -112,7 +112,7 @@ func InitStartBoard() *Board {
 func InitFENBoard(FEN string) *Board {
 	FEN_Arr := strings.Split(FEN, " ")
 	piecePositions := FEN_Arr[0]
-	turnColor := FEN_Arr[1]
+	fenColor := FEN_Arr[1]
 	castlingRights := FEN_Arr[2]
 	enPassantSquare := FEN_Arr[3]
 	drawCount := FEN_Arr[4]
@@ -158,7 +158,14 @@ func InitFENBoard(FEN string) *Board {
 		retval.GetTopState().EnPassantPosition = INVALID_POSITION
 	}
 
-	retval.GetTopState().IsWhiteTurn = turnColor == "w"
+	if fenColor == "w" {
+		retval.GetTopState().TurnColor = WHITE
+	} else if fenColor == "b" {
+		retval.GetTopState().TurnColor = BLACK
+	} else {
+		panic("need a proper fenColor!")
+	}
+
 	{
 		temp, _ := strconv.Atoi(drawCount)
 		retval.GetTopState().HalfMoveClock = byte(temp)
@@ -189,51 +196,51 @@ func (board *Board) placeFENonBoard(r rune, position Position) {
 	switch r {
 	case 'p':
 		thisPiece.thisBitBoard = &board.B.Pawn
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = PAWN
 	case 'r':
 		thisPiece.thisBitBoard = &board.B.Rook
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = ROOK
 	case 'n':
 		thisPiece.thisBitBoard = &board.B.Knight
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = KNIGHT
 	case 'b':
 		thisPiece.thisBitBoard = &board.B.Bishop
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = BISHOP
 	case 'q':
 		thisPiece.thisBitBoard = &board.B.Queen
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = QUEEN
 	case 'k':
 		thisPiece.thisBitBoard = &board.B.King
-		thisPiece.isWhite = false
+		thisPiece.color = BLACK
 		thisPiece.pieceTYPE = KING
 	case 'P':
 		thisPiece.thisBitBoard = &board.W.Pawn
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = PAWN
 	case 'R':
 		thisPiece.thisBitBoard = &board.W.Rook
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = ROOK
 	case 'N':
 		thisPiece.thisBitBoard = &board.W.Knight
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = KNIGHT
 	case 'B':
 		thisPiece.thisBitBoard = &board.W.Bishop
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = BISHOP
 	case 'Q':
 		thisPiece.thisBitBoard = &board.W.Queen
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = QUEEN
 	case 'K':
 		thisPiece.thisBitBoard = &board.W.King
-		thisPiece.isWhite = true
+		thisPiece.color = WHITE
 		thisPiece.pieceTYPE = KING
 	}
 	placeOnBitBoard(thisPiece.thisBitBoard, position)
@@ -318,7 +325,7 @@ func (board *Board) computeZobristHash() {
 
 	for i, piece := range board.PieceInfoArr {
 		if piece != nil {
-			if piece.isWhite {
+			if piece.color == WHITE {
 				hash ^= zobristPieceArr[piece.pieceTYPE][WHITE][i]
 			} else {
 				hash ^= zobristPieceArr[piece.pieceTYPE][BLACK][i]
@@ -332,7 +339,7 @@ func (board *Board) computeZobristHash() {
 		hash ^= zobristEnPassantArr[currState.EnPassantPosition%8]
 	}
 
-	if currState.IsWhiteTurn {
+	if currState.TurnColor == WHITE {
 		hash ^= zobristWhiteSideToMove
 	}
 
@@ -374,12 +381,7 @@ func (board *Board) updateZobristHash() {
 	to := getTargetPosition(currState.PrecedentMove)
 	flag := GetFlag(currState.PrecedentMove)
 	pieceType := board.PieceInfoArr[to].pieceTYPE
-	var color int
-	if prevState.IsWhiteTurn {
-		color = WHITE
-	} else {
-		color = BLACK
-	}
+	color := prevState.TurnColor
 
 	switch flag {
 	case quietFlag, doublePawnPushFlag: // Basic case, piece moved is same piece as piece arriving, no capture

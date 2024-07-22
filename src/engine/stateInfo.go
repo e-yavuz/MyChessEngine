@@ -14,8 +14,8 @@ type StateInfo struct {
 
 	useOpeningBook bool
 
-	inCheck     bool
-	IsWhiteTurn bool
+	inCheck   bool
+	TurnColor int8
 }
 
 func (si *StateInfo) Equal(other *StateInfo) bool {
@@ -33,7 +33,7 @@ func (si *StateInfo) Equal(other *StateInfo) bool {
 	}
 
 	valueCompare = si.EnPassantPosition == other.EnPassantPosition &&
-		si.IsWhiteTurn == other.IsWhiteTurn &&
+		si.TurnColor == other.TurnColor &&
 		si.CastleState == other.CastleState &&
 		si.ZobristKey == other.ZobristKey &&
 		si.HalfMoveClock == other.HalfMoveClock &&

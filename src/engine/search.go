@@ -412,7 +412,7 @@ func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
 
 	// En-passant fix
 	if GetFlag(move) == epCaptureFlag {
-		if board.GetTopState().IsWhiteTurn {
+		if board.GetTopState().TurnColor == WHITE {
 			targetPosition -= 8
 		} else {
 			targetPosition += 8

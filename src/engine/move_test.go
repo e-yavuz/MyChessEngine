@@ -85,7 +85,7 @@ func (si *StateInfo) equalNoCapture(other *StateInfo) bool {
 	}
 
 	valueCompare = si.EnPassantPosition == other.EnPassantPosition &&
-		si.IsWhiteTurn == other.IsWhiteTurn &&
+		si.TurnColor == other.TurnColor &&
 		si.getCastleWKing() == other.getCastleWKing() &&
 		si.getCastleBKing() == other.getCastleBKing() &&
 		si.getCastleWQueen() == other.getCastleWQueen() &&

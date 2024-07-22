@@ -259,20 +259,20 @@ func (board *Board) TryMoveUCI(move string) (Move, bool) {
 
 // Generates all possible moves for the current board state
 // and returns [true/false] if the move is in the list
-func (board *Board) validMove(move Move) bool {
-	if move == NULL_MOVE {
-		return false
-	}
-	moveList := make([]Move, 0, MAX_MOVE_COUNT)
-	moveList = board.GenerateMoves(ALL, moveList)
+// func (board *Board) validMove(move Move) bool {
+// 	if move == NULL_MOVE {
+// 		return false
+// 	}
+// 	moveList := make([]Move, 0, MAX_MOVE_COUNT)
+// 	moveList = board.GenerateMoves(ALL, moveList)
 
-	for _, possibleMove := range moveList {
-		if possibleMove.enc == move.enc {
-			return true
-		}
-	}
-	return false
-}
+// 	for _, possibleMove := range moveList {
+// 		if possibleMove.enc == move.enc {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 // Invariant: Assumes move is legal
 func (board *Board) MakeMove(move Move) {
@@ -284,7 +284,7 @@ func (board *Board) MakeMove(move Move) {
 
 	// Copy over from currentState to a new state
 	st := &StateInfo{
-		IsWhiteTurn:       !currentState.IsWhiteTurn,
+		TurnColor:         currentState.TurnColor ^ 1,
 		HalfMoveClock:     currentState.HalfMoveClock + 1,
 		TurnCounter:       currentState.TurnCounter,
 		ZobristKey:        currentState.ZobristKey,
@@ -296,15 +296,13 @@ func (board *Board) MakeMove(move Move) {
 	}
 
 	// Used at bottom of function to determine if king is in check
-	var enemyColor int
+	enemyColor := st.TurnColor ^ 1
 	var kingBitBoard BitBoard
 
-	if st.IsWhiteTurn {
+	if st.TurnColor == WHITE {
 		st.TurnCounter += 1
-		enemyColor = BLACK
 		kingBitBoard = board.W.King
-	} else {
-		enemyColor = WHITE
+	} else if st.TurnColor == BLACK {
 		kingBitBoard = board.B.King
 	}
 
@@ -331,7 +329,7 @@ func (board *Board) MakeMove(move Move) {
 	case doublePawnPushFlag:
 		st.EnPassantPosition = (from + to) / 2
 	case kingCastleFlag:
-		if piece.isWhite {
+		if piece.color == WHITE {
 			st.setCastleWKing(false)
 			st.setCastleWQueen(false)
 			board.swapPiecePositions(&board.W.Rook, to+1, to-1)
@@ -341,7 +339,7 @@ func (board *Board) MakeMove(move Move) {
 			board.swapPiecePositions(&board.B.Rook, to+1, to-1)
 		}
 	case queenCastleFlag:
-		if piece.isWhite {
+		if piece.color == WHITE {
 			st.setCastleWKing(false)
 			st.setCastleWQueen(false)
 			board.swapPiecePositions(&board.W.Rook, to-2, to+1)
@@ -355,7 +353,7 @@ func (board *Board) MakeMove(move Move) {
 	// Capture move
 	if captureFlag&GetFlag(move) > 0 {
 		if GetFlag(move) == epCaptureFlag {
-			if currentState.IsWhiteTurn {
+			if currentState.TurnColor == WHITE {
 				removeFromBitBoard(&board.B.Pawn, to-8)
 				st.Capture = board.PieceInfoArr[to-8]
 				board.PieceInfoArr[to-8] = nil
@@ -389,28 +387,28 @@ func (board *Board) MakeMove(move Move) {
 		st.PrePromotionBitBoard = piece.thisBitBoard
 		switch GetFlag(move) & 0b11 {
 		case 0: // Knight
-			if piece.isWhite {
+			if piece.color == WHITE {
 				piece.thisBitBoard = &board.W.Knight
 			} else {
 				piece.thisBitBoard = &board.B.Knight
 			}
 			piece.pieceTYPE = KNIGHT
 		case 1: // Rook
-			if piece.isWhite {
+			if piece.color == WHITE {
 				piece.thisBitBoard = &board.W.Rook
 			} else {
 				piece.thisBitBoard = &board.B.Rook
 			}
 			piece.pieceTYPE = ROOK
 		case 2: // Bishop
-			if piece.isWhite {
+			if piece.color == WHITE {
 				piece.thisBitBoard = &board.W.Bishop
 			} else {
 				piece.thisBitBoard = &board.B.Bishop
 			}
 			piece.pieceTYPE = BISHOP
 		case 3: // Queen
-			if piece.isWhite {
+			if piece.color == WHITE {
 				piece.thisBitBoard = &board.W.Queen
 			} else {
 				piece.thisBitBoard = &board.B.Queen
@@ -470,13 +468,13 @@ func (board *Board) UnMakeMove() {
 	// Reverse engineer castling
 	switch GetFlag(move) {
 	case kingCastleFlag: // From left of king's "to" position to his right
-		if piece.isWhite {
+		if piece.color == WHITE {
 			board.swapPiecePositions(&board.W.Rook, to-1, to+1)
 		} else {
 			board.swapPiecePositions(&board.B.Rook, to-1, to+1)
 		}
 	case queenCastleFlag: // From right of king's "to" position to his left
-		if piece.isWhite {
+		if piece.color == WHITE {
 			board.swapPiecePositions(&board.W.Rook, to+1, to-2)
 		} else {
 			board.swapPiecePositions(&board.B.Rook, to+1, to-2)
@@ -490,7 +488,7 @@ func (board *Board) UnMakeMove() {
 	// otherwise simply nil the infoarr spot as nothing exists there now
 	if captureFlag&GetFlag(move) > 0 {
 		if GetFlag(move) == epCaptureFlag {
-			if topState.IsWhiteTurn {
+			if topState.TurnColor == WHITE {
 				board.PieceInfoArr[to+8] = topState.Capture
 				placeOnBitBoard(topState.Capture.thisBitBoard, to+8)
 			} else {

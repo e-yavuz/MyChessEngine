@@ -12,7 +12,7 @@ const (
 
 type PieceInfo struct {
 	thisBitBoard *BitBoard
-	isWhite      bool
+	color        int8
 	pieceTYPE    int
 }
 
@@ -30,7 +30,7 @@ type PinnedPieceInfo struct {
 }
 
 func (pi *PieceInfo) Equal(other *PieceInfo) bool {
-	return *pi.thisBitBoard == *other.thisBitBoard && pi.isWhite == other.isWhite
+	return *pi.thisBitBoard == *other.thisBitBoard && pi.color == other.color
 }
 
 // Constructor for new piece with empty state

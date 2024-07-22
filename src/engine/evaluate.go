@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	WHITE = 0
-	BLACK = 1
+	WHITE int8 = 0
+	BLACK int8 = 1
 )
 
 var mgValue = [6]int{82, 337, 365, 477, 1025, 0}
@@ -180,7 +180,7 @@ func (board *Board) EvaluateMaterial(mgPhase, egPhase int) int {
 	mgMaterialDifference += mgValue[QUEEN] * (bits.OnesCount64(board.W.Queen) - bits.OnesCount64(board.B.Queen))
 	egMaterialDifference += egValue[QUEEN] * (bits.OnesCount64(board.W.Queen) - bits.OnesCount64(board.B.Queen))
 
-	if !board.GetTopState().IsWhiteTurn {
+	if board.GetTopState().TurnColor == BLACK {
 		mgMaterialDifference *= -1
 		egMaterialDifference *= -1
 	}
@@ -196,7 +196,7 @@ func peSTOTableEval(board *Board) (retval, mgPhase, egPhase int) {
 	/* evaluate each piece */
 	for pos, piece := range board.PieceInfoArr {
 		if piece != nil {
-			if piece.isWhite {
+			if piece.color == WHITE {
 				mg[WHITE] += mgTable[piece.pieceTYPE][pos]
 				eg[WHITE] += egTable[piece.pieceTYPE][pos]
 			} else {
@@ -210,7 +210,7 @@ func peSTOTableEval(board *Board) (retval, mgPhase, egPhase int) {
 	/* tapered eval */
 	mgScore := mg[WHITE] - mg[BLACK]
 	egScore := eg[WHITE] - eg[BLACK]
-	if !board.GetTopState().IsWhiteTurn {
+	if board.GetTopState().TurnColor == BLACK {
 		mgScore *= -1
 		egScore *= -1
 	}
@@ -231,7 +231,7 @@ func GetGamePhase(board *Board) int {
 }
 
 func GetPieceValue(piece PieceInfo, position Position, gamePhase int) int {
-	if piece.isWhite {
+	if piece.color == WHITE {
 		return ((mgTable[piece.pieceTYPE][position] * gamePhase) +
 			(egTable[piece.pieceTYPE][position] * (24 - gamePhase))) / 24
 	} else {

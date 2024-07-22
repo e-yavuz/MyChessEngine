@@ -63,7 +63,7 @@ func GetGameState(board *Board) byte {
 	// Look for mate/stalemate
 	if len(moveList) == 0 {
 		if board.InCheck() {
-			if board.GetTopState().IsWhiteTurn {
+			if board.GetTopState().TurnColor == WHITE {
 				return WhiteIsMated
 			}
 			return BlackIsMated

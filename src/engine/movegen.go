@@ -40,7 +40,7 @@ func init() {
 	}
 }
 
-func generateSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitBoard, pieceType int, genType int, moveList *[]Move) {
+func generateSliding(thisBitBoard BitBoard, targetBitBoard BitBoard, pieceType int, genType int, moveList *[]Move) {
 	// currentState := board.GetTopState()
 	if thisBitBoard == 0 {
 		return
@@ -107,7 +107,7 @@ func generateNonSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitB
 		// Always internally keep White as the team facing up North
 		// thus determine if it is White's turn, pawn's must move North and vice versa
 		var pawnPushDirection Direction
-		if currentState.IsWhiteTurn {
+		if currentState.TurnColor == WHITE {
 			pawnPushDirection = N
 		} else {
 			pawnPushDirection = S
@@ -191,7 +191,7 @@ func enemyPieceAttackBitBoard(board *Board) (retval BitBoard) {
 	var enemyPieces Pieces
 	var friendlyKing BitBoard
 	// Get the opposing enemyPieces that will generate moves
-	if currentState.IsWhiteTurn {
+	if currentState.TurnColor == WHITE {
 		enemyPieces = board.B
 		friendlyKing = board.W.King
 	} else {
@@ -202,7 +202,7 @@ func enemyPieceAttackBitBoard(board *Board) (retval BitBoard) {
 	//Pawns
 	if enemyPieces.Pawn != 0 {
 		var pawnPushDirection Direction
-		if currentState.IsWhiteTurn {
+		if currentState.TurnColor == WHITE {
 			pawnPushDirection = S
 		} else {
 			pawnPushDirection = N
@@ -261,7 +261,7 @@ func generateKing(board *Board, targetBitBoard BitBoard, genType int, inCheck bo
 	var from, to Position
 	var castleKing, castleQueen bool
 	// Get the pieces that will generate moves
-	if currentState.IsWhiteTurn {
+	if currentState.TurnColor == WHITE {
 		pieces = board.W
 		castleKing = currentState.getCastleWKing()
 		castleQueen = currentState.getCastleWQueen()
@@ -324,7 +324,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 	var from, to Position
 	var friendlyKing BitBoard
 	// Get the pieces that will generate moves
-	if currentState.IsWhiteTurn {
+	if currentState.TurnColor == WHITE {
 		friendlyPieces = &board.W
 		enemyPieces = &board.B
 	} else {
@@ -344,7 +344,7 @@ func generateCheck(board *Board) (pinnedPieces *[]PinnedPieceInfo, pinnedPiecesB
 	// Pawn
 	if enemyPieces.Pawn != 0 {
 		var pawnPushDirection Direction
-		if currentState.IsWhiteTurn {
+		if currentState.TurnColor == WHITE {
 			pawnPushDirection = N
 		} else {
 			pawnPushDirection = S
@@ -449,11 +449,11 @@ func generatePinned(board *Board, genType int, pinnedPieces *[]PinnedPieceInfo, 
 		case KNIGHT:
 			generateNonSliding(board, thisBitBoard, targetBitBoard, KNIGHT, genType, moveList)
 		case ROOK:
-			generateSliding(board, thisBitBoard, targetBitBoard, ROOK, genType, moveList)
+			generateSliding(thisBitBoard, targetBitBoard, ROOK, genType, moveList)
 		case BISHOP:
-			generateSliding(board, thisBitBoard, targetBitBoard, BISHOP, genType, moveList)
+			generateSliding(thisBitBoard, targetBitBoard, BISHOP, genType, moveList)
 		case QUEEN:
-			generateSliding(board, thisBitBoard, targetBitBoard, QUEEN, genType, moveList)
+			generateSliding(thisBitBoard, targetBitBoard, QUEEN, genType, moveList)
 		}
 	}
 }
@@ -469,7 +469,7 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 	var friendlyPieces, enemyPieces *Pieces
 	var targetBitBoard BitBoard
 
-	if currentState.IsWhiteTurn {
+	if currentState.TurnColor == WHITE {
 		enemyPieces = &board.B
 		friendlyPieces = &board.W
 	} else {
@@ -498,9 +498,9 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 			targetBitBoard = ^totalBitBoard
 		}
 		generatePinned(board, genType, pinnedPieces, &moveList)
-		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
-		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
-		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
+		generateSliding(friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
+		generateSliding(friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
+		generateSliding(friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
 		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, &moveList)
 		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, &moveList)
 	case 1:
@@ -512,9 +512,9 @@ func (board *Board) GenerateMoves(genType int, moveList []Move) []Move {
 		case QUIET:
 			targetBitBoard = (*checkingPieces)[0].intermediaryRay
 		}
-		generateSliding(board, friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
-		generateSliding(board, friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
-		generateSliding(board, friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
+		generateSliding(friendlyPieces.Queen&^pinnedPiecesBitBoard, targetBitBoard, QUEEN, genType, &moveList)
+		generateSliding(friendlyPieces.Bishop&^pinnedPiecesBitBoard, targetBitBoard, BISHOP, genType, &moveList)
+		generateSliding(friendlyPieces.Rook&^pinnedPiecesBitBoard, targetBitBoard, ROOK, genType, &moveList)
 		generateNonSliding(board, friendlyPieces.Knight&^pinnedPiecesBitBoard, targetBitBoard, KNIGHT, genType, &moveList)
 		generateNonSliding(board, friendlyPieces.Pawn&^pinnedPiecesBitBoard, targetBitBoard, PAWN, genType, &moveList)
 
@@ -547,7 +547,7 @@ func moveListHelper(bitboard BitBoard, moveDir Direction, moveList *[]Move, flag
 }
 
 // Simplified generateCheck to reduce computation as there is no need for pinned pieces, etc... used in search
-func (board *Board) isAttacked(position Position, color int) bool {
+func (board *Board) isAttacked(position Position, color int8) bool {
 	// Current state of board, includes who's turn it is, any EnPassant possibility, along with Castling Rights
 	var enemyPieces *Pieces
 
