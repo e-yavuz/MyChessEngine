@@ -160,8 +160,16 @@ func InitFENBoard(FEN string) *Board {
 
 	if fenColor == "w" {
 		retval.GetTopState().TurnColor = WHITE
+		kingPosition := retval.W.King
+		retval.GetTopState().inCheck = retval.isAttacked(PopLSB(&kingPosition), BLACK)
+		friendBitboard = retval.W.OccupancyBitBoard()
+		enemyBitBoard = retval.B.OccupancyBitBoard()
 	} else if fenColor == "b" {
 		retval.GetTopState().TurnColor = BLACK
+		kingPosition := retval.B.King
+		retval.GetTopState().inCheck = retval.isAttacked(PopLSB(&kingPosition), WHITE)
+		friendBitboard = retval.B.OccupancyBitBoard()
+		enemyBitBoard = retval.W.OccupancyBitBoard()
 	} else {
 		panic("need a proper fenColor!")
 	}
@@ -169,18 +177,10 @@ func InitFENBoard(FEN string) *Board {
 	{
 		temp, _ := strconv.Atoi(drawCount)
 		retval.GetTopState().HalfMoveClock = byte(temp)
-		kingPosition := retval.W.King
-		retval.GetTopState().inCheck = retval.isAttacked(PopLSB(&kingPosition), WHITE)
-		friendBitboard = retval.W.OccupancyBitBoard()
-		enemyBitBoard = retval.B.OccupancyBitBoard()
 	}
 	{
 		temp, _ := strconv.Atoi(turnCount)
 		retval.GetTopState().TurnCounter = byte(temp)
-		kingPosition := retval.B.King
-		retval.GetTopState().inCheck = retval.isAttacked(PopLSB(&kingPosition), BLACK)
-		friendBitboard = retval.B.OccupancyBitBoard()
-		enemyBitBoard = retval.W.OccupancyBitBoard()
 	}
 	totalBitBoard = friendBitboard | enemyBitBoard
 	retval.GetTopState().useOpeningBook = true
