@@ -240,3 +240,13 @@ func GetPieceValue(piece PieceInfo, position Position, gamePhase int) int {
 	}
 
 }
+
+func scoreIsCheckmate(score int) int {
+	if score <= MATE_SCORE+(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) {
+		return ((score - MATE_SCORE) / 2) + ((score - MATE_SCORE) & 1)
+	}
+	if score >= -MATE_SCORE-(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) {
+		return ((-MATE_SCORE - score) / 2) + ((-MATE_SCORE - score) & 1)
+	}
+	return 0
+}

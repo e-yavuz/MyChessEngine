@@ -7,7 +7,7 @@ import (
 
 const INTERMEDIARY_SPACE = 4 // Used for history heuristic, killer moves, etc.
 const CAPTURE_OFFSET = 10
-const BLIND_OFFSET = 6 // Used for if the low value victim is undefended
+const BLIND_CAPTURE_SCORE = 6 // Used for if the low value victim is undefended
 
 var mvv_lvaTable = [20]int8{
 	6, 9, 12, 16, // PAWN AGGRESSOR
@@ -24,7 +24,7 @@ func init() {
 		aggressor_val := i / 4
 		victim_val := i % 4
 		if aggressor_val <= victim_val {
-			mvv_lvaTable[i] += INTERMEDIARY_SPACE + BLIND_OFFSET
+			mvv_lvaTable[i] += INTERMEDIARY_SPACE + BLIND_CAPTURE_SCORE
 		}
 	}
 }
@@ -55,17 +55,15 @@ For example, a very promising move, when available, is a move where one player m
 the opponent’s queen with their own pawn and this move is thus given the highest priority
 by the MVV-LVA heuristic.
 */
-func (board *Board) moveordering(usePV_TT bool, PVMove Move, TTMove Move, moveList []Move) {
+func (board *Board) moveordering(PVMove Move, TTMove Move, moveList []Move) {
 	for i := range moveList {
-		if !usePV_TT {
-			if moveList[i].enc == PVMove.enc {
-				moveList[i].priority = 127
-				continue
-			}
-			if moveList[i].enc == TTMove.enc {
-				moveList[i].priority = 126
-				continue
-			}
+		if moveList[i].enc == PVMove.enc {
+			moveList[i].priority = 127
+			continue
+		}
+		if moveList[i].enc == TTMove.enc {
+			moveList[i].priority = 126
+			continue
 		}
 		var takenPiece int
 
@@ -105,21 +103,21 @@ func (board *Board) quiescence_moveordering(moveList []Move) {
 			takenPiece = board.PieceInfoArr[getTargetPosition(moveList[i])].pieceTYPE
 		case epCaptureFlag:
 			takenPiece = PAWN
-		case knightPromotionFlag, bishopPromotionFlag, rookPromotionFlag, knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag:
+		case knightPromoCaptureFlag, bishopPromoCaptureFlag, rookPromoCaptureFlag:
 			moveList[i].priority = 100 // Promotions are always good
 			continue
-		case queenPromotionFlag, queenPromoCaptureFlag:
+		case queenPromoCaptureFlag:
 			moveList[i].priority = 101 // Normally queen promo = best promo
 			continue
 		default:
-			continue
+			panic("Quiessence move ordering should only be used for captures, but this flag is not a capture!")
 		}
 
 		aggressor := pieceTypeToMVVTableType(board.PieceInfoArr[getStartingPosition(moveList[i])].pieceTYPE)
 		victim := pieceTypeToMVVTableType(takenPiece)
 
 		// Access MVV_LVA list
-		moveList[i].priority = board.MVV_LVA_score(aggressor, victim)
+		moveList[i].priority = board.MVV_LVA_score(aggressor, victim, getTargetPosition(moveList[i]))
 	}
 
 	slices.SortFunc(moveList, func(a, b Move) int {
@@ -127,6 +125,12 @@ func (board *Board) quiescence_moveordering(moveList []Move) {
 	})
 }
 
-func (board *Board) MVV_LVA_score(aggressor, victim int) int8 {
-	return mvv_lvaTable[(aggressor*4)+victim]
+func (board *Board) MVV_LVA_score(aggressor, victim int, capturePosition Position) (priority int8) {
+	/* BLIND (Better or Lesser If Not Defended) CAPTURES, if the victim is undefended, then the priority is increased */
+	if aggressor > victim && !board.isAttacked(capturePosition, board.GetTopState().TurnColor^1) {
+		priority += BLIND_CAPTURE_SCORE
+	}
+
+	priority += mvv_lvaTable[(aggressor*4)+victim]
+	return priority
 }
