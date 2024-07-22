@@ -26,11 +26,20 @@ type searchInfo struct {
 	score     int
 	seldepth  int8
 	multipv   byte
-	qNodes    uint64
-	pvNodes   uint64
-	allNodes  uint64
-	cutNodes  uint64
 	leafNodes uint64
+	debug     debugInfo
+}
+
+type debugInfo struct {
+	qNodes                uint64
+	pvNodes               uint64
+	allNodes              uint64
+	cutNodes              uint64
+	reducedNodes          uint64
+	siblingNodes          uint64
+	amountReduced         uint64
+	researchedNodes       uint64
+	researchedReduceNodes uint64
 }
 
 var latestSearchInfo searchInfo
@@ -70,7 +79,7 @@ func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChanne
 
 		latestSearchInfo = searchInfo{startTime: startTime, multipv: 1, depth: depth}
 
-		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, cancelChannel)
+		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, false, cancelChannel)
 
 		if pv[0] != NULL_MOVE {
 			copy(savedPV[:depth], pv[:depth])
