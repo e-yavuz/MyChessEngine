@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	name = "ChessEngineEmre v12a (Modified mvv_lva priority into a table, improved movegen speed with Knight + King table and global variable occupancy bitboards)"
+	name = "ChessEngineEmre v13a (testmvv.py BLIND, added go perft)"
 )
 
 var options Options = Options{Hash: engine.DefaultTTMBSize, OwnBook: false}
@@ -85,6 +85,8 @@ func readCommand(reader *bufio.Reader) (bool, error) {
 		return true, commandTestGameUndoMove()
 	} else if strings.HasPrefix(text, "bk-test") {
 		return true, commandBratkoKopec(text)
+	} else if strings.HasPrefix(text, "bench") {
+		return true, commandBenchmark(text)
 	} else if strings.HasPrefix(text, "depth-test") {
 		return true, commandDepthTest(text)
 	} else if strings.HasPrefix(text, "eval") {
@@ -199,6 +201,8 @@ If one command is not sent its value should be interpreted as it would not influ
     engine decides to ponder on a different move, it should not display any mainlines as they are
     likely to be misinterpreted by the GUI because the GUI expects the engine to ponder
     on the suggested move.
+  - perft <x>
+    calculate the perft value to depth x
   - wtime <x>
     white has x msec left on the clock
   - btime <x>
@@ -243,16 +247,6 @@ func commandGo(text string) (engine.Move, error) {
 		return engine.NULL_MOVE, nil
 	}
 
-	if options.OwnBook {
-		if bookMove := gameBoard.GetOpeningBookMove(); bookMove != engine.NULL_MOVE {
-			if uciDebug {
-				fmt.Println("Using opening book...")
-			}
-			fmt.Printf("bestmove %s\n", engine.MoveToString(bookMove))
-			return bookMove, nil
-		}
-	}
-
 	// Reset the search cancel channel to open
 	searchCancelChannel = make(chan struct{})
 
@@ -264,6 +258,17 @@ func commandGo(text string) (engine.Move, error) {
 	text = strings.TrimPrefix(text, "go ")
 	// Split the string into an array of strings
 	textArr := strings.Split(text, " ")
+
+	if len(textArr) == 2 && textArr[0] == "perft" && textArr[1] != "" {
+		depth, _ := strconv.Atoi(textArr[1])
+		perftOut, rootNodes := engine.Perft(gameBoard, depth, true)
+		for move, count := range rootNodes {
+			fmt.Printf("%s: %d\n", move, count)
+		}
+		fmt.Printf("\nNodes searched: %d\n", perftOut)
+		return engine.NULL_MOVE, nil
+	}
+
 	// Loop through the array of strings
 	for i := 0; i < len(textArr); i++ {
 		switch textArr[i] {
@@ -280,6 +285,16 @@ func commandGo(text string) (engine.Move, error) {
 			fixedMoveTime = true
 		case "movestogo":
 			remainingMoves, _ = strconv.ParseInt(textArr[i+1], 10, 64)
+		}
+	}
+
+	if options.OwnBook {
+		if bookMove := gameBoard.GetOpeningBookMove(); bookMove != engine.NULL_MOVE {
+			if uciDebug {
+				fmt.Println("Using opening book...")
+			}
+			fmt.Printf("bestmove %s\n", engine.MoveToString(bookMove))
+			return bookMove, nil
 		}
 	}
 
@@ -486,9 +501,20 @@ func commandDepthTest(text string) error {
 	fmt.Println()
 	startTime := time.Now()
 	searchCancelChannel = make(chan struct{})
-	move := gameBoard.StartSearchDepth(startTime, int8(depth), searchCancelChannel)
+	move, score, timeTaken := gameBoard.StartSearchDepth(startTime, int8(depth), searchCancelChannel)
 	close(searchCancelChannel)
-	fmt.Printf("bestmove %s, time: %dms\n", engine.MoveToString(move), time.Since(startTime).Milliseconds())
+	fmt.Printf("bestmove %s, nodes: %d, time: %dms\n", engine.MoveToString(move), score, timeTaken)
+	engine.TTReset(gameBoard, uint64(options.Hash))
+	return nil
+}
+
+func commandBenchmark(text string) error {
+	depth, err := strconv.Atoi(strings.TrimPrefix(text, "bench "))
+	if err != nil {
+		return err
+	}
+	avgNodes, avgTime := testpositions.Bench(int8(depth), options.Hash)
+	fmt.Printf("Bench Stats:\n\tAverage Nodes: %0.2f\n\tAverage Time: %0.2fms\n", avgNodes, avgTime)
 	engine.TTReset(gameBoard, uint64(options.Hash))
 	return nil
 }
