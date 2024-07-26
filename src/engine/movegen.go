@@ -131,7 +131,8 @@ func generateNonSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitB
 				rookPromoCaptureFlag, bishopPromoCaptureFlag)
 			// Check if en passant is even possible this turn
 			var eastCaptureEnPassant, westCaptureEnPassant BitBoard
-			if currentState.EnPassantPosition != INVALID_POSITION {
+			capturedPawnBitBoard := Shift(BitBoard(1)<<currentState.EnPassantPosition, -pawnPushDirection) & targetBitBoard
+			if currentState.EnPassantPosition != INVALID_POSITION && capturedPawnBitBoard&targetBitBoard != 0 {
 				eastCaptureEnPassant = Shift(thisBitBoard&^Col8Full, pawnPushDirection+E) & (1 << currentState.EnPassantPosition) // If so see if
 				westCaptureEnPassant = Shift(thisBitBoard&^Col1Full, pawnPushDirection+W) & (1 << currentState.EnPassantPosition) // en passant exists on capture spots
 				moveListHelper(eastCaptureEnPassant, pawnPushDirection+E, moveList, epCaptureFlag)
