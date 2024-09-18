@@ -135,8 +135,17 @@ func generateNonSliding(board *Board, thisBitBoard BitBoard, targetBitBoard BitB
 			if currentState.EnPassantPosition != INVALID_POSITION && capturedPawnBitBoard&targetBitBoard != 0 {
 				eastCaptureEnPassant = Shift(thisBitBoard&^Col8Full, pawnPushDirection+E) & (1 << currentState.EnPassantPosition) // If so see if
 				westCaptureEnPassant = Shift(thisBitBoard&^Col1Full, pawnPushDirection+W) & (1 << currentState.EnPassantPosition) // en passant exists on capture spots
-				moveListHelper(eastCaptureEnPassant, pawnPushDirection+E, moveList, epCaptureFlag)
-				moveListHelper(westCaptureEnPassant, pawnPushDirection+W, moveList, epCaptureFlag)
+				if eastCaptureEnPassant != 0 {
+					if !board.epDoublePinFix(currentState.EnPassantPosition, -pawnPushDirection, -(pawnPushDirection + E), currentState.TurnColor) {
+						moveListHelper(eastCaptureEnPassant, pawnPushDirection+E, moveList, epCaptureFlag)
+					}
+				}
+				if westCaptureEnPassant != 0 {
+					if !board.epDoublePinFix(currentState.EnPassantPosition, -pawnPushDirection, -(pawnPushDirection + W), currentState.TurnColor) {
+						moveListHelper(westCaptureEnPassant, pawnPushDirection+W, moveList, epCaptureFlag)
+					}
+				}
+
 			}
 			// Finally consider all remaining capture moves by inverting the special
 			// ones along with AND'ing on top of original
@@ -620,5 +629,37 @@ func (board *Board) isAttacked(position Position, color int8) bool {
 		}
 	}
 
+	return false
+}
+
+// Fixes double pawn pin illegality with en-passant capture
+// example position is
+//
+//	FEN:
+//
+// 8/8/1B3b2/4p3/4QPpk/3P4/6p1/4R1K1 b - f3 0 52
+func (board *Board) epDoublePinFix(enPassantPosition Position, dirOfCaptured, dirOfCapturer Direction, color int8) bool {
+	capturedSpotBitBoard := BitBoard(1) << enPassantPosition
+	involvedPawns := Shift(capturedSpotBitBoard, dirOfCaptured) | Shift(capturedSpotBitBoard, dirOfCapturer)
+
+	var kingPosition Position
+	var enemyPieces Pieces
+	if color == WHITE {
+		temp := board.W.King
+		enemyPieces = board.B
+		kingPosition = PopLSB(&temp)
+	} else if color == BLACK {
+		temp := board.B.King
+		enemyPieces = board.W
+		kingPosition = PopLSB(&temp)
+	} else {
+		panic("Improper color passed to epDoublePinFix()")
+	}
+	attackers := GetRookMoves(kingPosition, RookMask(kingPosition)&totalBitBoard&^involvedPawns)
+	attackers &= enemyPieces.Queen | enemyPieces.Rook
+
+	if attackers > 0 {
+		return true
+	}
 	return false
 }
