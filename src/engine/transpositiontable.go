@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	PVnode byte = iota
+	NULLnode byte = iota
+	PVnode
 	ALLnode
 	CUTnode
-	NULLnode
 )
 
 // TODO work on TT optimization, seems to function identical to single entry max-depth TT
@@ -61,27 +61,23 @@ func init() {
 
 func getBestSubEntry(depth int8, turn byte, zobristKey uint64) (ttSubEntry, byte, Move) {
 	entry := &hash_table[zobristKey%TableCapacity]
-	retvalSubEntry := NULLttSubEntry
-	retvalNodeType := NULLnode
 	retvalMove := NULL_MOVE
+	retvalNodeType := NULLnode
 
 	for i := 0; i < ttEntry_ARcount; i++ {
-		if entry.subEntries[i].zobristKey == zobristKey &&
-			getDepth(entry.subEntries[i].ttInfo) >= depth &&
-			entry.subEntries[i].turn >= turn {
-
-			retvalSubEntry = entry.subEntries[i] // found a matching zobristKey with higher depth
-			break
-
+		if entry.subEntries[i].zobristKey == zobristKey {
+			if retvalMove == NULL_MOVE {
+				retvalMove = entry.subEntries[i].move
+				retvalNodeType = getNodeType(entry.subEntries[i].ttInfo)
+			}
+			if getDepth(entry.subEntries[i].ttInfo) >= depth &&
+				entry.subEntries[i].turn >= turn {
+				return entry.subEntries[i], retvalNodeType, retvalMove
+			}
 		}
 	}
 
-	if entry.subEntries[0] != NULLttSubEntry {
-		retvalNodeType = getNodeType(entry.subEntries[0].ttInfo)
-		retvalMove = entry.subEntries[0].move
-	}
-
-	return retvalSubEntry, retvalNodeType, retvalMove // nothing found that matches this zobristKey
+	return NULLttSubEntry, retvalNodeType, retvalMove // nothing found that matches this zobristKey
 }
 
 func getReplaceEntry(depth int8, turn byte, zobristKey uint64) *ttSubEntry {
