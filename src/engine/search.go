@@ -5,17 +5,22 @@ import (
 	"time"
 )
 
+var DebugMode = false
+
 const (
-	MATE_SCORE             = -65535
-	MIN_VALUE              = -2147483648
-	MAX_VALUE              = 2147483648
-	MAX_EXTENSION_DEPTH    = 8
-	MAX_QSEARCH_DEPTH      = 30
-	MAX_SEARCH_DEPTH       = 63
-	DELTAPRUNE_MARGIN      = 200
-	LATE_GAME_PHASE_CUTOFF = 4
-	triangleTableSize      = ((MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH)*(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) + (MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)) / 2
-	squareTableSize        = (MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH) * (MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)
+	MATE_SCORE                  = -65535
+	DRAW_SCORE                  = 0
+	MIN_VALUE                   = -2147483648
+	MAX_VALUE                   = 2147483648
+	MAX_EXTENSION_DEPTH         = 8
+	MAX_QSEARCH_DEPTH           = 30
+	MAX_SEARCH_DEPTH            = 63
+	MAX_POSSIBLE_DEPTH          = MAX_EXTENSION_DEPTH + MAX_SEARCH_DEPTH
+	NULL_MOVE_REDUCTION    int8 = 2
+	DELTAPRUNE_MARGIN           = 200
+	LATE_GAME_PHASE_CUTOFF      = 4
+	triangleTableSize           = ((MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH)*(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) + (MAX_POSSIBLE_DEPTH)) / 2
+	squareTableSize             = (MAX_POSSIBLE_DEPTH) * (MAX_POSSIBLE_DEPTH)
 )
 
 type searchInfo struct {
@@ -28,17 +33,35 @@ type searchInfo struct {
 	debug     debugInfo
 }
 
+var prevIterationNodeCount uint64 // for branching factor calculation
+
 type debugInfo struct {
-	qNodes                uint64
-	qNodeDeltaPrunes      uint64
-	pvNodes               uint64
-	allNodes              uint64
-	cutNodes              uint64
-	reducedNodes          uint64
-	siblingNodes          uint64
-	amountReduced         uint64
+	qNodes           uint64
+	qNodeDeltaPrunes uint64
+
+	pvNodes  uint64
+	allNodes uint64
+	cutNodes uint64
+
+	D1pvNodes  uint64
+	D1allNodes uint64
+	D1cutNodes uint64
+
+	reducedNodes  uint64
+	amountReduced uint64
+
+	siblingNodes uint64
+
 	researchedNodes       uint64
 	researchedReduceNodes uint64
+
+	probePVNodes  uint64
+	probeALLNodes uint64
+	probeCUTNodes uint64
+
+	probePVNodesCorrect  uint64
+	probeALLNodesCorrect uint64
+	probeCUTNodesCorrect uint64
 }
 
 var latestSearchInfo searchInfo
@@ -46,11 +69,10 @@ var latestSearchInfo searchInfo
 var bestEvalThisIteration int
 var currentSearchTurn byte
 
-var DebugMode = false
-var savedPV [MAX_SEARCH_DEPTH]Move
+var savedPV [MAX_POSSIBLE_DEPTH]Move // Principal variation lists
 
-var searchMovePool [MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH][MAX_MOVE_COUNT]Move
-var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move
+var searchMovePool [MAX_POSSIBLE_DEPTH][MAX_MOVE_COUNT]Move    // Move pool for main-search
+var qsearchMovePool [MAX_QSEARCH_DEPTH][MAX_CAPTURE_COUNT]Move // Move pool for quiescence search
 
 var pv [squareTableSize]Move
 var pvPtr int
@@ -59,14 +81,17 @@ func (board *Board) StartSearchNoDepth(startTime time.Time, cancelChannel chan s
 	return board.initSearch(startTime, MAX_SEARCH_DEPTH, cancelChannel)
 }
 
-func (board *Board) StartSearchDepth(startTime time.Time, max_depth int8, cancelChannel chan struct{}) Move {
-	return board.initSearch(startTime, max_depth, cancelChannel)
+func (board *Board) StartSearchDepth(startTime time.Time, max_depth int8, cancelChannel chan struct{}) (score Move, nodes uint64, timeTaken int64) {
+	return board.initSearch(startTime, max_depth, cancelChannel), latestSearchInfo.leafNodes, time.Since(startTime).Milliseconds()
 }
 
 func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChannel chan struct{}) Move {
 	var depth int8 = 1
 	pvPtr = 0
-	savedPV = [MAX_SEARCH_DEPTH]Move{}
+	pv = [squareTableSize]Move{}
+	savedPV = [MAX_POSSIBLE_DEPTH]Move{}
+	resetHistory()
+	resetKillers()
 	if DebugMode {
 		TTDebugReset(board)
 	}
@@ -77,8 +102,11 @@ func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChanne
 	for depth <= max_depth {
 
 		latestSearchInfo = searchInfo{startTime: startTime, multipv: 1, depth: depth}
+		ageHistory()
+		pv = [squareTableSize]Move{}
+		// killerMovesCounter = [MAX_POSSIBLE_DEPTH][64][64]uint16{}
 
-		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, false, cancelChannel)
+		board.search(depth, 0, MIN_VALUE, MAX_VALUE, 0, false, true, cancelChannel)
 
 		if pv[0] != NULL_MOVE {
 			copy(savedPV[:depth], pv[:depth])
@@ -110,7 +138,7 @@ func (board *Board) initSearch(startTime time.Time, max_depth int8, cancelChanne
 // The numExtensions parameter specifies the number of extensions to apply during the search.
 // The cancelChannel parameter is used to cancel the search if needed.
 // If the search is cancelled, the function returns 0.
-func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensions int8, searchReduced bool, cancelChannel chan struct{}) int {
+func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensions int8, searchReduced, doNullMove bool, cancelChannel chan struct{}) int {
 	// Check if the search has been cancelled
 	select {
 	case <-cancelChannel:
@@ -119,19 +147,17 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	}
 
 	if plyFromRoot > 0 {
-		// Fifty move rule
-		if board.GetTopState().HalfMoveClock >= 100 {
-			return 0
-		}
-
-		// Threefold repetition
-		if board.RepetitionPositionHistory[board.GetTopState().ZobristKey] == 3 {
-			return 0
+		// Fifty move rule, Insufficient Material, Threefold repetition
+		if board.GetTopState().HalfMoveClock >= 100 ||
+			isInsufficientMaterial(board) ||
+			board.RepetitionPositionHistory[board.GetTopState().ZobristKey] == 3 {
+			latestSearchInfo.leafNodes++
+			return DRAW_SCORE
 		}
 	}
 
 	if depth <= 0 {
-		eval := board.quiescenceSearch(alpha, beta, plyFromRoot, 0, cancelChannel)
+		eval := board.quiescenceSearch(alpha, beta, 0, cancelChannel)
 		latestSearchInfo.leafNodes++
 		return eval
 	}
@@ -144,8 +170,25 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		return probeScore
 	}
 
+	// lazyEval, _, egPhase := board.Evaluate()
+	inPVNode := alpha != beta-1
+
+	// Null Move Pruning, https://www.chessprogramming.org/Null_Move_Pruning
+	// if doNullMove && !inPVNode && depth > 1 && egPhase != 24 && !board.InCheck() && lazyEval >= beta-50 {
+	// 	board.MakeMove(NULL_MOVE)
+	// 	nullScore := -board.search(depth-1-NULL_MOVE_REDUCTION, plyFromRoot+1, -beta, -beta+1, numExtensions, searchReduced, false, cancelChannel)
+	// 	board.UnMakeMove()
+	// 	if nullScore >= beta {
+	// 		if nullScore >= -MATE_SCORE-(MAX_SEARCH_DEPTH+MAX_EXTENSION_DEPTH) {
+	// 			nullScore = beta
+	// 		}
+
+	// 		return nullScore
+	// 	}
+	// }
+
 	moveList := board.GenerateMoves(ALL, searchMovePool[plyFromRoot][:0])
-	board.moveordering(savedPV[plyFromRoot], probeMove, moveList)
+	board.moveordering(savedPV[plyFromRoot], probeMove, plyFromRoot, moveList)
 
 	if len(moveList) == 0 {
 		latestSearchInfo.leafNodes++
@@ -156,10 +199,23 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		}
 	}
 
+	if DebugMode {
+		switch probeNodeType {
+		case PVnode:
+			latestSearchInfo.debug.probePVNodes++
+		case ALLnode:
+			latestSearchInfo.debug.probeALLNodes++
+		case CUTnode:
+			latestSearchInfo.debug.probeCUTNodes++
+		}
+	}
+
 	nodeType := ALLnode
 	this_pvPtr := pvPtr
 	pv[pvPtr] = NULL_MOVE // initialize empty PV
-	pvPtr += int(MAX_SEARCH_DEPTH + MAX_EXTENSION_DEPTH)
+	pvPtr += int(MAX_POSSIBLE_DEPTH)
+
+	wasInCheck := board.InCheck()
 
 	var bestScore int
 
@@ -168,7 +224,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		// using fail soft with negamax:
 		board.MakeMove(move)
 		extension := extendSearch(board, move, numExtensions)
-		bestScore = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, cancelChannel)
+		bestScore = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, true, cancelChannel)
 		board.UnMakeMove()
 
 		// Check if the search has been cancelled
@@ -184,18 +240,32 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 			// We record this information in the transposition table.
 			recordHash(depth, CUTnode, currentSearchTurn, bestScore, NULL_MOVE, board.GetTopState().ZobristKey)
 			pvPtr = this_pvPtr
-			if depth == 1 {
+			// Killer Heuristic, https://www.chessprogramming.org/Killer_Heuristic
+			// if !board.InCheck() && move != savedPV[plyFromRoot] {
+			// 	updateKiller(plyFromRoot, move)
+			// }
+			// History Heuristic, https://www.chessprogramming.org/History_Heuristic
+			// No need to loop since this is the first move
+			updateHistory(board, move, int16(depth*depth))
+
+			if DebugMode {
 				latestSearchInfo.debug.cutNodes++
+				if depth == 1 {
+					latestSearchInfo.debug.D1cutNodes++
+				}
+				if probeNodeType == CUTnode {
+					latestSearchInfo.debug.probeCUTNodesCorrect++
+				}
 			}
 			return bestScore
 		}
 		if bestScore > alpha { // This move is better than the current best move
-			updatePVTable(this_pvPtr, move, depth)
-			nodeType = PVnode
-			alpha = bestScore
 			if plyFromRoot == 0 {
 				bestEvalThisIteration = bestScore // Update the best evaluation score for this iteration
 			}
+			updatePVTable(this_pvPtr, move, depth)
+			nodeType = PVnode
+			alpha = bestScore
 		}
 	}
 
@@ -204,9 +274,9 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		var score int
 		needFullSearch := true
 
-		latestSearchInfo.debug.siblingNodes++
-
-		wasInCheck := board.InCheck()
+		if DebugMode {
+			latestSearchInfo.debug.siblingNodes++
+		}
 
 		board.MakeMove(move)
 
@@ -215,18 +285,20 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 
 		// Late move reductions, https://www.chessprogramming.org/Late_Move_Reductions
 		var reduceAmount int8
-		if i >= 1 && depth >= 3 && !wasInCheck && !board.InCheck() && extension == 0 && probeNodeType != PVnode && !isTacticalMove(move) && !searchReduced {
-			reduceAmount = depth / 3 // Senpai engine implementation
-			latestSearchInfo.debug.reducedNodes++
+		if depth >= 3 && !wasInCheck && !board.InCheck() && extension == 0 && !inPVNode && isQuietMove(move) && !searchReduced {
+			reduceAmount = depth / 3 // Senpai engine LMR implementation
+			if DebugMode {
+				latestSearchInfo.debug.reducedNodes++
+			}
 			latestSearchInfo.debug.amountReduced += uint64(reduceAmount)
-			score = -board.search(depth-1-reduceAmount, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, true, cancelChannel)
+			score = -board.search(depth-1-reduceAmount, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, true, true, cancelChannel)
 			needFullSearch = (score > alpha && score < beta)
 		}
 
 		// PVS Search, https://www.chessprogramming.org/Principal_Variation_Search
 		if needFullSearch {
-			score = -board.search(depth-1+extension, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, (reduceAmount != 0) || searchReduced, cancelChannel)
-			if reduceAmount != 0 {
+			score = -board.search(depth-1+extension, plyFromRoot+1, -alpha-1, -alpha, numExtensions+extension, (reduceAmount != 0) || searchReduced, true, cancelChannel)
+			if DebugMode && reduceAmount != 0 {
 				latestSearchInfo.debug.researchedReduceNodes++
 			}
 			needFullSearch = (score > alpha && score < beta)
@@ -234,8 +306,10 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 
 		// Full search
 		if needFullSearch {
-			score = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, cancelChannel)
-			latestSearchInfo.debug.researchedNodes++
+			score = -board.search(depth-1+extension, plyFromRoot+1, -beta, -alpha, numExtensions+extension, false, true, cancelChannel)
+			if DebugMode {
+				latestSearchInfo.debug.researchedNodes++
+			}
 			alpha = max(alpha, score)
 		}
 
@@ -251,22 +325,54 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 		if score >= beta {
 			recordHash(depth, CUTnode, currentSearchTurn, score, NULL_MOVE, board.GetTopState().ZobristKey)
 			pvPtr = this_pvPtr
+			if DebugMode {
+				latestSearchInfo.debug.cutNodes++
+				if depth == 1 {
+					latestSearchInfo.debug.D1cutNodes++
+				}
+				if probeNodeType == CUTnode {
+					latestSearchInfo.debug.probeCUTNodesCorrect++
+				}
+			}
+			// Killer Heuristic, https://www.chessprogramming.org/Killer_Heuristic
+			// if !board.InCheck() && move != savedPV[plyFromRoot] {
+			// 	updateKiller(plyFromRoot, move)
+			// }
+			// History Heuristic, https://www.chessprogramming.org/History_Heuristic
+			if updateHistory(board, move, int16(depth*depth)) { // If this move is a quiet move
+				// Update all quiet moves before this move to have negative value
+				for j := i - 1; j >= 0 && updateHistory(board, moveList[j], -int16(depth*depth)); j-- {
+				}
+			}
 			return score
 		}
 		if score > bestScore { // This move is better than the current best move
-			updatePVTable(this_pvPtr, move, depth)
-			nodeType = PVnode
-			bestScore = score
 			if plyFromRoot == 0 {
 				bestEvalThisIteration = score // Update the best evaluation score for this iteration
 			}
+			updatePVTable(this_pvPtr, move, depth)
+			nodeType = PVnode
+			bestScore = score
 		}
 	}
-
-	if nodeType == ALLnode && depth == 1 {
-		latestSearchInfo.debug.allNodes++
-	} else if nodeType == PVnode && depth == 1 {
-		latestSearchInfo.debug.pvNodes++
+	if DebugMode {
+		if nodeType == ALLnode {
+			latestSearchInfo.debug.allNodes++
+			if depth == 1 {
+				latestSearchInfo.debug.D1allNodes++
+			}
+			if probeNodeType == ALLnode {
+				latestSearchInfo.debug.probeALLNodesCorrect++
+			}
+		} else if nodeType == PVnode {
+			latestSearchInfo.debug.pvNodes++
+			if depth == 1 {
+				latestSearchInfo.debug.D1pvNodes++
+			}
+			if probeNodeType == PVnode {
+				latestSearchInfo.debug.probePVNodesCorrect++
+			}
+		}
 	}
 
 	pvPtr = this_pvPtr
@@ -274,7 +380,7 @@ func (board *Board) search(depth, plyFromRoot int8, alpha, beta int, numExtensio
 	return bestScore
 }
 
-func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch int8, cancelChannel chan struct{}) int {
+func (board *Board) quiescenceSearch(alpha, beta int, plyFromSearch int8, cancelChannel chan struct{}) int {
 	select { // Check if the search has been cancelled
 	case <-cancelChannel:
 		return bestEvalThisIteration
@@ -303,12 +409,13 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 
 	if eval > alpha {
 		alpha = eval
-		latestSearchInfo.seldepth = max(plyFromRoot-latestSearchInfo.depth, latestSearchInfo.seldepth)
 	}
 
 	if plyFromSearch >= MAX_QSEARCH_DEPTH {
 		return alpha
 	}
+
+	latestSearchInfo.seldepth = max(plyFromSearch, latestSearchInfo.seldepth)
 
 	captureMoveList := board.GenerateMoves(CAPTURE, qsearchMovePool[plyFromSearch][:0])
 	board.quiescence_moveordering(captureMoveList)
@@ -321,7 +428,7 @@ func (board *Board) quiescenceSearch(alpha, beta int, plyFromRoot, plyFromSearch
 		}
 
 		board.MakeMove(move)
-		eval := -board.quiescenceSearch(-beta, -alpha, plyFromRoot+1, plyFromSearch+1, cancelChannel)
+		eval := -board.quiescenceSearch(-beta, -alpha, plyFromSearch+1, cancelChannel)
 		board.UnMakeMove()
 
 		if eval >= beta {
@@ -349,12 +456,12 @@ func extendSearch(board *Board, move Move, numExtensions int8) int8 {
 		return 1
 	}
 
-	pieceType := board.PieceInfoArr[getTargetPosition(move)].pieceTYPE
-	moveRank := (getTargetPosition(move) & 0b111000) >> 3
+	// pieceType := board.PieceInfoArr[getTargetPosition(move)].pieceTYPE
+	// moveRank := (getTargetPosition(move) & 0b111000) >> 3
 
-	if pieceType == PAWN && (moveRank == 1 || moveRank == 6) { // Pawn on verge of promotion, also interesting
-		return 1
-	}
+	// if pieceType == PAWN && (moveRank == 1 || moveRank == 6) { // Pawn on verge of promotion, also interesting
+	// 	return 1
+	// }
 
 	return 0
 }
@@ -377,13 +484,16 @@ func getTargetPieceValue(board *Board, move Move, gamePhase int) int {
 }
 
 func updatePVTable(this_pvPtr int, move Move, depth int8) {
+	if move.enc == NULL_MOVE.enc {
+		panic("PV Table Invalid Update w/ Null move")
+	}
 	child_pvPtr := pvPtr
-	pvPtr = this_pvPtr
-	pv[pvPtr] = move
-	pvPtr++
+	tempPtr := this_pvPtr
+	pv[tempPtr] = move
+	tempPtr++
 	for i := int8(0); i < depth-1 && pv[child_pvPtr] != NULL_MOVE; i++ { // copy child PV behind it
-		pv[pvPtr] = pv[child_pvPtr]
-		pvPtr++
+		pv[tempPtr] = pv[child_pvPtr]
+		tempPtr++
 		child_pvPtr++
 	}
 }
@@ -394,9 +504,8 @@ func updatePVTable(this_pvPtr int, move Move, depth int8) {
 info depth <depth> seldepth <maxdepth searched> multipv <principal variations> score cp <score> nodes <nodecount> nps <nodes / time> time <time taken in ms> pv <pv>
 */
 func engineInfoString() (retval string) {
-	nodeCount := latestSearchInfo.debug.allNodes + latestSearchInfo.debug.pvNodes + latestSearchInfo.debug.cutNodes
 	elapsedTime := time.Since(latestSearchInfo.startTime)
-	nps := int64(float64(nodeCount) / elapsedTime.Seconds())
+	nps := int64(float64(latestSearchInfo.leafNodes) / elapsedTime.Seconds())
 	hashFill := int(float64(DebugTableSize) / float64(TableCapacity) * 1000)
 	// Convert PV chain up to depth to a single string seperated by " "
 	pvString := ""
@@ -421,10 +530,21 @@ func engineInfoString() (retval string) {
 	}
 
 	if DebugMode {
-		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n", latestSearchInfo.debug.pvNodes, 100*float32(latestSearchInfo.debug.pvNodes)/float32(nodeCount), latestSearchInfo.debug.allNodes, 100*float32(latestSearchInfo.debug.allNodes)/float32(nodeCount), latestSearchInfo.debug.cutNodes, 100*float32(latestSearchInfo.debug.cutNodes)/float32(nodeCount))
+		totalNodeCount := latestSearchInfo.debug.allNodes + latestSearchInfo.debug.pvNodes + latestSearchInfo.debug.cutNodes
+		D1totalNodeCount := latestSearchInfo.debug.D1allNodes + latestSearchInfo.debug.D1pvNodes + latestSearchInfo.debug.D1cutNodes
+		retval += fmt.Sprintf("\nDebug Info of nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n", latestSearchInfo.debug.pvNodes, 100*float32(latestSearchInfo.debug.pvNodes)/float32(totalNodeCount), latestSearchInfo.debug.allNodes, 100*float32(latestSearchInfo.debug.allNodes)/float32(totalNodeCount), latestSearchInfo.debug.cutNodes, 100*float32(latestSearchInfo.debug.cutNodes)/float32(totalNodeCount))
+		retval += fmt.Sprintf("\nDebug Info of depth-1 nodes:\n\tpvNodes: %d(%0.2f%%)\n\tallNodes: %d(%0.2f%%)\n\tcutNodes: %d(%0.2f%%)\n", latestSearchInfo.debug.D1pvNodes, 100*float32(latestSearchInfo.debug.D1pvNodes)/float32(D1totalNodeCount), latestSearchInfo.debug.D1allNodes, 100*float32(latestSearchInfo.debug.D1allNodes)/float32(D1totalNodeCount), latestSearchInfo.debug.D1cutNodes, 100*float32(latestSearchInfo.debug.D1cutNodes)/float32(D1totalNodeCount))
+		retval += fmt.Sprintf("\nDebug Info of probe nodes:\n\tpvNodes: %d(Correct: %0.2f%%)\n\tallNodes: %d(Correct: %0.2f%%)\n\tcutNodes: %d(Correct: %0.2f%%)\n", latestSearchInfo.debug.probePVNodes, 100*float32(latestSearchInfo.debug.probePVNodesCorrect)/float32(latestSearchInfo.debug.probePVNodes), latestSearchInfo.debug.probeALLNodes, 100*float32(latestSearchInfo.debug.probeALLNodesCorrect)/float32(latestSearchInfo.debug.probeALLNodes), latestSearchInfo.debug.probeCUTNodes, 100*float32(latestSearchInfo.debug.probeCUTNodesCorrect)/float32(latestSearchInfo.debug.probeCUTNodes))
 		retval += fmt.Sprintf("\nDebug Info of quiescence nodes:\n\tqNodes: %d\n\tqNodes delta Pruned: %d(%0.2f%%)\n", latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes, latestSearchInfo.debug.qNodeDeltaPrunes, 100*float32(latestSearchInfo.debug.qNodeDeltaPrunes)/float32(latestSearchInfo.debug.qNodes-latestSearchInfo.leafNodes))
 		retval += fmt.Sprintf("\nDebug Info of sibling nodes:\n\tsiblingNodes: %d\n\tsiblingNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.siblingNodes, latestSearchInfo.debug.researchedNodes, 100*float32(latestSearchInfo.debug.researchedNodes)/float32(latestSearchInfo.debug.siblingNodes))
-		retval += fmt.Sprintf("\nDebug Info of reduced nodes:\n\treducedNodes: %d(%0.2f%%)\n\taverage Reduce Amount: %0.2f\n\treducedNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.reducedNodes, 100*float32(latestSearchInfo.debug.reducedNodes)/float32(nodeCount), float32(latestSearchInfo.debug.amountReduced)/float32(latestSearchInfo.debug.reducedNodes), latestSearchInfo.debug.researchedReduceNodes, 100*float32(latestSearchInfo.debug.researchedReduceNodes)/float32(latestSearchInfo.debug.reducedNodes))
+		retval += fmt.Sprintf("\nDebug Info of reduced nodes:\n\treducedNodes: %d(%0.2f%%)\n\taverage Reduce Amount: %0.2f\n\treducedNodes re-searched: %d(%0.2f%%)\n", latestSearchInfo.debug.reducedNodes, 100*float32(latestSearchInfo.debug.reducedNodes)/float32(latestSearchInfo.debug.siblingNodes), float32(latestSearchInfo.debug.amountReduced)/float32(latestSearchInfo.debug.reducedNodes), latestSearchInfo.debug.researchedReduceNodes, 100*float32(latestSearchInfo.debug.researchedReduceNodes)/float32(latestSearchInfo.debug.reducedNodes))
+		if latestSearchInfo.depth > 1 {
+			// Return branching factor in relation to previous iteration
+			retval += fmt.Sprintf("\nDebug Info of Effective Branching Factor:\n\t( N(D) / N(D-1) )\n\t%d/%d(%0.2f)\n", totalNodeCount, prevIterationNodeCount, float32(totalNodeCount)/float32(prevIterationNodeCount))
+		}
+		// Mean/Average Branching Factor
+		retval += fmt.Sprintf("\nDebug Info of Average Branching Factor:\n\t # of all nodes / # of non terminal nodes\n\t%d/%d(%0.2f)\n", totalNodeCount+latestSearchInfo.leafNodes, totalNodeCount, float32(totalNodeCount+latestSearchInfo.leafNodes)/float32(totalNodeCount))
+		prevIterationNodeCount = totalNodeCount
 	}
 
 	return retval
