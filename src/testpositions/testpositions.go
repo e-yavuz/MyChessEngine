@@ -81,6 +81,21 @@ func Run(timePerCase int, hashSize uint64) (totalCorrect, totalRun int) {
 	return totalCorrect, len(testCases)
 }
 
+func Bench(depthPerCase int8, hashSize uint64) (avgNodes float64, avgTime float64) {
+	testCases := GetTests()
+	var totalNodeCount uint64
+	var totalTime int64
+	for _, testCase := range testCases {
+		board := engine.InitFENBoard(testCase.fen)
+		engine.TTReset(board, hashSize)
+		searchCancelChannel := make(chan struct{})
+		_, nodes, time := board.StartSearchDepth(time.Now(), depthPerCase, searchCancelChannel)
+		totalNodeCount += nodes
+		totalTime += time
+	}
+	return float64(totalNodeCount) / float64(len(testCases)), float64(totalTime) / float64(len(testCases))
+}
+
 func GetTests() (retval []BKTest) {
 	file, err := os.Open("/Applications/VSCODE/Projects/Personal/WorkInProgress/ChessEngine/MyEngine/src/testpositions/testpositions_out.txt")
 	if err != nil {
