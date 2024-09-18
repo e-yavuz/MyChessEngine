@@ -1,11 +1,11 @@
 # Chess Engine Project
 
-   |\_
-  /  .\_
- |   ___)
- |  _ \
- /_____\
-[_______]
+####    |\_
+####   /  .\_
+####  |   ___)
+####  |  _ \
+####  /_____\
+#### |_______|
 
 ## Overview
 This project is a personal endeavor inspired by Sebastian Lague's chess engine video series. It aims to create a fully functional chess engine with various advanced features to enhance its playing strength and efficiency. The project is written in Go and includes several state-of-the-art techniques used in modern chess engines.
