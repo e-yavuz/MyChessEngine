@@ -83,7 +83,7 @@ type Move struct {
 	// 6-11: to
 	// 12-15: flags
 
-	priority int8
+	priority int16
 	// used in move ordering
 }
 
@@ -238,8 +238,8 @@ func GetFlag(move Move) Flag {
 	return move.enc >> 12
 }
 
-func isTacticalMove(move Move) bool {
-	return GetFlag(move) >= captureFlag
+func isQuietMove(move Move) bool {
+	return GetFlag(move)&0b1100 == 0
 }
 
 // Trys to make a move by generating possible moves at ply 1, then checking if the move in UCI format
