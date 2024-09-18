@@ -143,4 +143,4 @@ This project is licensed under the MIT License. See the LICENSE file for details
 ## Acknowledgments
 
 - Sebastian Lague for his inspiring chess engine video series.
-- The open-source chess community for various resources and ideas.
+- The open-source chess community for various resources and ideas. (https://www.chessprogramming.org)
