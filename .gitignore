@@ -11,3 +11,4 @@ temp/
 *.prof
 *.pgn
 *.test
+main.go
