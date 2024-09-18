@@ -125,3 +125,43 @@ func Test_Position_bk02(t *testing.T) {
 	}
 	fmt.Printf("Speed: %d Nodes/sec", 1000*uint64(float64(perftOut)/float64(time.Now().UnixMilli()-startTime)))
 }
+
+func Test_Position_doubleEnPassantPawnPin(t *testing.T) {
+	InitMagicBitBoardTable("../../magic_rook", "../../magic_bishop")
+	InitZobristTable()
+	test := InitFENBoard("8/8/1B3b2/4p3/4QPpk/3P4/6p1/4R1K1 b - f3 0 52")
+	var perftOut, expected uint64
+	var rootNodes map[string]uint64
+
+	perftOut, rootNodes = Perft(test, 1, true)
+	expected = 10
+	if perftOut != expected {
+		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "Perft(test, 1)", expected, perftOut, rootNodes)
+	}
+
+	perftOut, rootNodes = Perft(test, 2, true)
+	expected = 366
+	if perftOut != expected {
+		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "Perft(test, 2)", expected, perftOut, rootNodes)
+	}
+
+	perftOut, rootNodes = Perft(test, 3, true)
+	expected = 3651
+	if perftOut != expected {
+		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "Perft(test, 3)", expected, perftOut, rootNodes)
+	}
+
+	perftOut, rootNodes = Perft(test, 4, true)
+	expected = 129973
+	if perftOut != expected {
+		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "Perft(test, 4)", expected, perftOut, rootNodes)
+	}
+
+	startTime := time.Now().UnixMilli()
+	perftOut, rootNodes = Perft(test, 5, true)
+	expected = 1355437
+	if perftOut != expected {
+		t.Fatalf("%s failed\n\texpected: %d\n\tgot: %d\n%v\n", "Perft(test, 5)", expected, perftOut, rootNodes)
+	}
+	fmt.Printf("Speed: %d Nodes/sec", 1000*uint64(float64(perftOut)/float64(time.Now().UnixMilli()-startTime)))
+}
