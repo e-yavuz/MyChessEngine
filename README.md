@@ -44,45 +44,12 @@ The engine includes an opening book to play well-known opening moves quickly and
 ### 9. Evaluation Function
 The evaluation function assesses the strength of a position based on various factors such as material balance, piece activity, king safety, pawn structure, and more. This function is crucial for the engine to make informed decisions during the search.
 
-## Project Structure
+## Project structure
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.16 or later
-
-### Installation
-
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/yourusername/chessengine.git
-    cd chessengine
-    ```
-
-2. Install dependencies:
-    ```sh
-    go mod tidy
-    ```
-
-3. Build the project:
-    ```sh
-    go build -o chessengine main.go
-    ```
-
-## Running the Engine
-
-To start the engine in UCI mode:
-```sh
-./chessengine
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.16 or later
-- A modern C++ compiler (for compiling magic bitboards)
-- Visual Studio Code (recommended for development)
 
 ### Installation
 
