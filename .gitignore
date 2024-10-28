@@ -12,3 +12,5 @@ temp/
 *.pgn
 *.test
 main.go
+*.py
+bots/
